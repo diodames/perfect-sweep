@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 
 /* ============ DATA: legendary FIBA World Cup national squads ============ */
 const TEAMS = [
@@ -171,6 +171,87 @@ const STYLES = [
   { id: "lock", label: "LOCKDOWN", desc: "Slow it down, strangle them", off: -3, def: 6, pace: -12 },
 ];
 const ROUNDS = ["GROUP GAME 1", "GROUP GAME 2", "GROUP GAME 3", "2ND ROUND — GAME 1", "2ND ROUND — GAME 2", "QUARTERFINAL", "SEMIFINAL", "THE FINAL"];
+
+const TEAM_INDEX = Object.fromEntries(TEAMS.map((t, i) => [`${t.name}|${t.season}`, i]));
+
+function lineupPlayerRef(lineup, slot) {
+  const p = lineup[slot];
+  if (!p) return null;
+  const ti = TEAM_INDEX[`${p.team}|${p.season}`];
+  if (ti == null) return null;
+  const pi = TEAMS[ti].players.findIndex((pl) => pl.name === p.name && pl.n === p.n);
+  return pi >= 0 ? [ti, pi] : null;
+}
+
+function encodeRunShare({ rolls, groupOut, r2Out, lineup, games }) {
+  const payload = {
+    v: 1,
+    r: rolls,
+    g: groupOut ? 1 : 0,
+    x: r2Out ? 1 : 0,
+    l: SLOTS.map((s) => lineupPlayerRef(lineup, s)),
+    m: games.map((g) => {
+      const oi = TEAM_INDEX[`${g.opp.name}|${g.opp.season}`];
+      const box = SLOTS.map((s) => g.box?.find((b) => b.name === lineup[s]?.name && b.n === lineup[s]?.n)?.pts ?? 0);
+      return [g.my, g.op, oi, ...box];
+    }),
+  };
+  const json = JSON.stringify(payload);
+  const b64 = btoa(unescape(encodeURIComponent(json)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${window.location.pathname}?card=${b64}`;
+}
+
+function decodeRunShare(search) {
+  const raw = new URLSearchParams(search).get("card");
+  if (!raw) return null;
+  try {
+    const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(escape(atob(padded)));
+    const p = JSON.parse(json);
+    if (p.v !== 1 || !Array.isArray(p.l) || !Array.isArray(p.m) || !p.m.length) return null;
+
+    const lineup = {};
+    p.l.forEach((entry, slotIdx) => {
+      if (!entry) return;
+      const [ti, pi] = entry;
+      const team = TEAMS[ti];
+      const player = team?.players[pi];
+      const slot = SLOTS[slotIdx];
+      if (!team || !player || player.pos !== slot) return;
+      lineup[slot] = { ...player, team: team.name, season: team.season, tc: team.c };
+    });
+    if (SLOTS.some((s) => !lineup[s])) return null;
+
+    const games = p.m.map((row, i) => {
+      const [my, op, oi, ...boxPts] = row;
+      const opp = TEAMS[oi];
+      if (!opp) return null;
+      const box = SLOTS.map((s, j) => {
+        const pl = lineup[s];
+        return pl ? { name: pl.name, n: pl.n, pts: boxPts[j] ?? 0 } : null;
+      }).filter(Boolean);
+      return { my, op, opp, round: ROUNDS[i] || ROUNDS[ROUNDS.length - 1], box };
+    }).filter(Boolean);
+    if (!games.length) return null;
+
+    return {
+      lineup,
+      games,
+      rolls: p.r ?? 0,
+      groupOut: !!p.g,
+      r2Out: !!p.x,
+      gi: games.length,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readShareFromUrl() {
+  if (typeof window === "undefined") return null;
+  return decodeRunShare(window.location.search);
+}
 
 const shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
 
@@ -745,6 +826,16 @@ const css = `
   text-transform:uppercase;letter-spacing:.01em;}
 .eyebrow{font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
   letter-spacing:.28em;font-size:11px;color:#5f6b7d;}
+.cardRunMeta{display:flex;align-items:center;gap:.65rem;flex-wrap:nowrap;
+  font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;font-size:12px;color:#c6d2e3;white-space:nowrap;
+  overflow-x:auto;padding:.55rem 0;margin:0;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.cardRunMeta::-webkit-scrollbar{display:none;}
+.cardRunMetaSep{color:#5f6b7d;flex-shrink:0;}
+@media (min-width:640px){
+  .cardRunMeta{font-size:11px;letter-spacing:.1em;color:#93a1b5;}
+}
 .panel{background:linear-gradient(180deg,#141926 0%,#10141f 100%);
   border:1px solid #232b3d;border-top:2px solid #2c3650;
   clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);}
@@ -762,6 +853,24 @@ const css = `
   color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.7);}
 .rowHover{transition:background .1s;} .rowHover:hover{background:rgba(232,70,90,.10);}
 .gemShield{clip-path:polygon(50% 0,100% 22%,100% 78%,50% 100%,0 78%,0 22%);}
+.matchCard{display:flex;align-items:stretch;padding:0;overflow:hidden;}
+.matchCardRound{display:flex;flex-direction:column;justify-content:center;padding:.65rem .7rem;min-width:4.25rem;
+  background:rgba(0,0,0,.22);border-right:1px solid #1c2333;flex-shrink:0;}
+.matchCardRound .eyebrow{letter-spacing:.06em;font-size:9px;line-height:1.35;}
+.matchCardBody{flex:1;min-width:0;padding:.65rem .75rem;}
+.matchCardScore{display:flex;flex-direction:row;align-items:center;justify-content:flex-end;
+  padding:.65rem .8rem;flex-shrink:0;gap:.35rem;white-space:nowrap;}
+.matchCardScoreNum{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
+  font-size:1.2rem;white-space:nowrap;line-height:1;}
+.matchCardScoreIcon{font-family:'Saira Condensed',sans-serif;font-size:.95rem;line-height:1;flex-shrink:0;}
+.runHero{background:linear-gradient(180deg,#0a0c12 0%,#06080d 100%);border-top:2px solid #E8465A;text-align:center;}
+.runHeroRecord{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
+  font-size:clamp(2.75rem,14vw,4.5rem);line-height:1;color:#fff;
+  text-shadow:0 4px 28px rgba(232,70,90,.35);}
+.runHeroStats{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:1rem;padding-top:1rem;border-top:1px solid #1c2333;}
+.runHeroStatVal{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;font-size:1.5rem;color:#ff8b98;}
+.runHeroStatLbl{font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;font-size:9px;color:#5f6b7d;margin-top:.15rem;}
 @media (prefers-reduced-motion: no-preference){
   .pop{animation:pop .28s cubic-bezier(.2,.9,.3,1.2);}
   @keyframes pop{from{transform:translateY(10px) scale(.97);opacity:0}to{transform:none;opacity:1}}
@@ -769,6 +878,136 @@ const css = `
   @keyframes slideL{from{transform:translateX(-24px);opacity:0}to{transform:none;opacity:1}}
 }
 `;
+
+const BtnArrow = () => <span className="whitespace-nowrap">{"\u00A0"}▸</span>;
+
+function roundShortLabel(i) {
+  if (i < 3) return "GROUPS";
+  if (i < 5) return "2ND RD";
+  if (i === 5) return "QF";
+  if (i === 6) return "SF";
+  return "FINAL";
+}
+
+function roundGameIndex(i) {
+  if (i < 3) return i + 1;
+  if (i < 5) return i - 2;
+  return null;
+}
+
+const GAME_RESULT_STYLES = {
+  close: { background: "#2a2418", color: "#e8d48a", border: "1px solid #5c4f28" },
+  sweep: { background: "#1d3a2a", color: "#7ee2a8", border: "1px solid #2c5c40" },
+  loss: { background: "#3a1d22", color: "#f08a8a", border: "1px solid #5c2c34" },
+};
+
+function gameResultState(g) {
+  if (!g) return null;
+  const m = g.my - g.op;
+  if (m <= 0) return "loss";
+  if (m >= 10) return "sweep";
+  return "close";
+}
+
+function marginColor(m) {
+  if (m <= 0) return GAME_RESULT_STYLES.loss.color;
+  if (m >= 10) return GAME_RESULT_STYLES.sweep.color;
+  return GAME_RESULT_STYLES.close.color;
+}
+
+const MatchSummaryCard = ({ g, i }) => {
+  const state = gameResultState(g);
+  const icon = state === "loss" ? "✕" : state === "sweep" ? "🔥" : "✓";
+  const resultStyle = GAME_RESULT_STYLES[state];
+  const subIdx = roundGameIndex(i);
+  const scorers = g.box?.slice(0, 3).map((p) => `${p.name} ${p.pts}`).join(", ") || "";
+  const oc = oppColor(g.opp);
+
+  return (
+    <div className="matchCard panel slideL">
+      <div className="matchCardRound">
+        <span className="eyebrow">{roundShortLabel(i)}</span>
+        {subIdx != null && <span className="eyebrow" style={{ color: "#93a1b5", fontSize: 8 }}>· G{subIdx}</span>}
+      </div>
+      <div className="matchCardBody">
+        <div className="dsp text-sm" style={{ color: oc }}>
+          VS {g.opp.name.toUpperCase()}{"\u00A0"}'{g.opp.season.slice(2)}
+        </div>
+        {scorers && (
+          <div className="text-[11px] mt-0.5 truncate" style={{ color: "#5f6b7d" }}>
+            TOP PTS · {scorers}
+          </div>
+        )}
+      </div>
+      <div className="matchCardScore" style={{
+        background: resultStyle.background,
+        borderLeft: resultStyle.border,
+        color: resultStyle.color,
+      }}>
+        <div className="matchCardScoreNum">{g.my}{"\u00A0"}—{"\u00A0"}{g.op}</div>
+        <span className="matchCardScoreIcon">{icon}</span>
+      </div>
+    </div>
+  );
+};
+
+const RunSummaryHero = ({ perfect, eliminated, groupOut, r2Out, runStats }) => {
+  if (!runStats) return null;
+  const { w, l, ppgF, ppgA, sweepWins } = runStats;
+
+  let headline, record, subLabel, statThirdLabel, statThirdValue, recordColor = "#fff";
+  if (perfect) {
+    headline = "THE PERFECT SWEEP";
+    record = "8×10";
+    subLabel = "8 SWEEPS";
+    statThirdLabel = "SWEEPS";
+    statThirdValue = sweepWins;
+    recordColor = "#ff8b98";
+  } else if (eliminated) {
+    headline = groupOut ? "OUT IN THE GROUP STAGE" : r2Out ? "OUT IN THE 2ND ROUND" : "ELIMINATED";
+    record = `${w}–${l}`;
+    subLabel = `${w} WIN${w !== 1 ? "S" : ""}`;
+    statThirdLabel = "WINS";
+    statThirdValue = w;
+    recordColor = "#f08a8a";
+  } else {
+    headline = "WORLD CHAMPIONS";
+    record = "8–0";
+    subLabel = `${sweepWins} SWEEP${sweepWins !== 1 ? "S" : ""}`;
+    statThirdLabel = "SWEEPS";
+    statThirdValue = sweepWins;
+    recordColor = "#e8d48a";
+  }
+
+  return (
+    <div className="runHero panel p-4 sm:p-5">
+      <div className="eyebrow mb-1" style={{ letterSpacing: ".14em", color: "#93a1b5" }}>{headline}</div>
+      <div className="runHeroRecord" style={{
+        color: perfect
+          ? undefined
+          : recordColor,
+        ...(perfect ? {
+          background: "linear-gradient(180deg,#fff 25%,#ff8b98 55%,#E8465A)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        } : {}),
+      }}>{record}</div>
+      <div className="dsp text-sm mt-2" style={{ color: "#93a1b5" }}>{subLabel}</div>
+      <div className="runHeroStats">
+        {[
+          [ppgF.toFixed(1), "PTS FOR / G"],
+          [ppgA.toFixed(1), "AGAINST / G"],
+          [statThirdValue, statThirdLabel],
+        ].map(([v, l]) => (
+          <div key={l}>
+            <div className="runHeroStatVal">{v}</div>
+            <div className="runHeroStatLbl">{l}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const Gem = ({ rt, size = 34 }) => {
   const t = tier(rt);
@@ -781,18 +1020,19 @@ const Gem = ({ rt, size = 34 }) => {
 };
 
 export default function PerfectSweep() {
-  const [screen, setScreen] = useState("home");
+  const shareInit = useMemo(() => readShareFromUrl(), []);
+  const [screen, setScreen] = useState(shareInit ? "card" : "home");
   const [deck, setDeck] = useState([]);
-  const [rolls, setRolls] = useState(0);
-  const [lineup, setLineup] = useState({});
+  const [rolls, setRolls] = useState(shareInit?.rolls ?? 0);
+  const [lineup, setLineup] = useState(shareInit?.lineup ?? {});
   const [style, setStyle] = useState(STYLES[1]);
-  const [games, setGames] = useState([]);
+  const [games, setGames] = useState(shareInit?.games ?? []);
   const [gauntlet, setGauntlet] = useState([]);
-  const [gi, setGi] = useState(0);
+  const [gi, setGi] = useState(shareInit?.gi ?? 0);
   const [rivalGames, setRivalGames] = useState([]);
-  const [groupOut, setGroupOut] = useState(false);
+  const [groupOut, setGroupOut] = useState(shareInit?.groupOut ?? false);
   const [r2, setR2] = useState(null); // second round: carried result + rival fixtures
-  const [r2Out, setR2Out] = useState(false);
+  const [r2Out, setR2Out] = useState(shareInit?.r2Out ?? false);
   const [nationSwapUsed, setNationSwapUsed] = useState(false);
   const [yearSwapUsed, setYearSwapUsed] = useState(false);
   const [speed, setSpeed] = useState("medium"); // fast | medium | slow
@@ -801,7 +1041,6 @@ export default function PerfectSweep() {
   const [seenNations, setSeenNations] = useState([]);
   const [seenYears, setSeenYears] = useState([]);
   const [openFlow, setOpenFlow] = useState({});
-  const [showCard, setShowCard] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const runId = useRef(0);
 
@@ -986,7 +1225,9 @@ export default function PerfectSweep() {
   };
 
   const shareLink = () => {
-    const url = window.location.href;
+    const path = encodeRunShare({ rolls, groupOut, r2Out, lineup, games });
+    const url = `${window.location.origin}${path}`;
+    window.history.replaceState(null, "", path);
     const done = () => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); };
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(done);
     else {
@@ -997,7 +1238,20 @@ export default function PerfectSweep() {
     }
   };
 
-  const reset = () => { runId.current++; setLive(null); setShowCard(false); setLinkCopied(false); setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0); setNationSwapUsed(false); setYearSwapUsed(false); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false); setPickedThisRoll(false); setSeenNations([]); setSeenYears([]); setOpenFlow({}); };
+  useEffect(() => {
+    if (screen === "card" && games.length && SLOTS.every((s) => lineup[s])) {
+      window.history.replaceState(null, "", encodeRunShare({ rolls, groupOut, r2Out, lineup, games }));
+    } else if (screen !== "card" && window.location.search.includes("card=")) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [screen, rolls, groupOut, r2Out, lineup, games]);
+
+  const reset = () => {
+    runId.current++; setLive(null); setLinkCopied(false); setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
+    setNationSwapUsed(false); setYearSwapUsed(false); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false);
+    setPickedThisRoll(false); setSeenNations([]); setSeenYears([]); setOpenFlow({});
+    window.history.replaceState(null, "", window.location.pathname);
+  };
 
   const wins = games.filter((g) => g.my > g.op).length;
   const perfect = wins === 8 && games.every((g) => g.my - g.op >= 10);
@@ -1006,7 +1260,7 @@ export default function PerfectSweep() {
 
   /* ---- end-of-run stats ---- */
   const runStats = useMemo(() => {
-    if (screen !== "done" || !games.length) return null;
+    if ((screen !== "done" && screen !== "card") || !games.length) return null;
     const players = SLOTS.map((s) => lineup[s]).filter(Boolean).map((p) => {
       const per = games.map((g) => g.box.find((b) => b.name === p.name && b.n === p.n)?.pts || 0);
       const tot = per.reduce((a, b) => a + b, 0);
@@ -1020,11 +1274,12 @@ export default function PerfectSweep() {
     return {
       players, resultLabel,
       w: wins, l: games.length - wins,
+      totalPF: pf, totalPA: pa,
       ppgF: pf / games.length, ppgA: pa / games.length,
       avgMargin: margins.reduce((a, b) => a + b, 0) / games.length,
       bigWin: Math.max(...margins),
       sweepWins: margins.filter((m) => m >= 10).length,
-      emoji: games.map((g) => g.my > g.op ? (g.my - g.op >= 10 ? "🔥" : "✅") : "❌").join(""),
+      margins,
       ovr: Math.round(myRt),
     };
   }, [screen, games, lineup, wins, perfect, eliminated, groupOut, r2Out, myRt]);
@@ -1077,7 +1332,7 @@ export default function PerfectSweep() {
           </div>
           <button className="btnP skew dsp9 text-2xl px-12 py-4 mt-10"
             onClick={() => { roll(); setScreen("draft"); }}>
-            <span className="unskew">TIP OFF ▸</span>
+            <span className="unskew">TIP OFF<BtnArrow /></span>
           </button>
           <div className="mt-8 eyebrow">
             {new Set(TEAMS.map(t => t.name)).size} NATIONS · {TEAMS.length} SQUADS · {TEAMS.length * 6} PLAYERS
@@ -1125,7 +1380,7 @@ export default function PerfectSweep() {
               <div className="flex-1" />
               <button disabled={filled < 5} onClick={startTournament}
                 className={`skew dsp9 px-7 py-2.5 text-lg ${filled === 5 ? "btnP" : "btnDead"}`}>
-                <span className="unskew">PLAY THE WORLD CUP ▸</span>
+                <span className="unskew">PLAY THE WORLD CUP<BtnArrow /></span>
               </button>
             </div>
           </div>
@@ -1180,7 +1435,7 @@ export default function PerfectSweep() {
                     <div className="absolute inset-0 z-10 flex items-center justify-center"
                       style={{ background: "rgba(10,12,18,.72)", backdropFilter: "blur(1px)" }}>
                       <div className="skew chip dsp9 px-5 py-2 text-sm" style={{ background: "#E8465A", color: "#fff" }}>
-                        <span className="unskew">PLAYER SIGNED — ROLL FOR THE NEXT SQUAD ▸</span>
+                        <span className="unskew">PLAYER SIGNED — ROLL FOR THE NEXT SQUAD<BtnArrow /></span>
                       </div>
                     </div>
                   )}
@@ -1215,6 +1470,7 @@ export default function PerfectSweep() {
       {(screen === "sim" || screen === "done") && (
         <div className="max-w-3xl mx-auto px-4 py-6 pop">
           {/* sim speed */}
+          {screen === "sim" && (
           <div className="flex justify-end items-center gap-2 mb-3">
             <span className="eyebrow">SIM SPEED</span>
             <select value={speed} onChange={(e) => setSpeed(e.target.value)} disabled={!!live}
@@ -1225,16 +1481,15 @@ export default function PerfectSweep() {
               <option value="slow">SLOW — PLAY-BY-PLAY</option>
             </select>
           </div>
+          )}
           {/* round tracker */}
           <div className="flex gap-1 mb-6 justify-center flex-wrap">
             {ROUNDS.map((r, i) => {
               const g = games[i];
-              const state = !g ? "up" : g.my > g.op ? (g.my - g.op >= 10 ? "sweep" : "win") : "loss";
+              const state = !g ? "up" : gameResultState(g);
               const sty = {
                 up: { background: "#151b29", color: "#5f6b7d", border: "1px solid #232b3d" },
-                win: { background: "#1d3a2a", color: "#7ee2a8", border: "1px solid #2c5c40" },
-                sweep: { background: "linear-gradient(180deg,#ff5468,#c92840)", color: "#fff", border: "1px solid #ff8b98" },
-                loss: { background: "#3a1d22", color: "#f08a8a", border: "1px solid #5c2c34" },
+                ...GAME_RESULT_STYLES,
               }[state];
               return (
                 <div key={i} className="chip dsp text-[10px] px-2.5 py-1 text-center" style={{ ...sty, minWidth: 72 }}>
@@ -1245,13 +1500,12 @@ export default function PerfectSweep() {
           </div>
 
           {/* played games — broadcast scoreboards */}
-          {games.map((g, i) => (
+          {screen === "sim" && games.map((g, i) => (
             <React.Fragment key={i}>
               <div className="panel mb-3 slideL overflow-hidden">
                 <div className="flex items-center justify-between px-4 pt-2">
                   <span className="eyebrow">{g.round}</span>
-                  <span className="dsp text-xs" style={{
-                    color: g.my > g.op ? (g.my - g.op >= 10 ? "#ff8b98" : "#e8d48a") : "#f08a8a" }}>
+                  <span className="dsp text-xs" style={{ color: marginColor(g.my - g.op) }}>
                     {g.my > g.op
                       ? (g.my - g.op >= 10 ? "✓ DOUBLE-DIGIT WIN" : "WIN UNDER 10 — SWEEP GONE")
                       : (i < 3 ? "GROUP LOSS — TABLE DECIDES" : i < 5 ? "2ND ROUND LOSS — TABLE DECIDES" : "ELIMINATED")}
@@ -1295,7 +1549,7 @@ export default function PerfectSweep() {
                       className="rowHover flex items-center justify-between px-4 py-2 cursor-pointer"
                       style={{ borderTop: "1px solid #1c2333" }}>
                       <span className="eyebrow">📈 MOMENTUM — GAME FLOW</span>
-                      <span className="dsp text-sm" style={{ color: "#5f6b7d" }}>{openFlow[i] ? "▲ HIDE" : "▼ SHOW"}</span>
+                      <span className="dsp text-sm whitespace-nowrap shrink-0" style={{ color: "#5f6b7d" }}>{openFlow[i] ? "▲\u00A0HIDE" : "▼\u00A0SHOW"}</span>
                     </div>
                     {openFlow[i] && (
                       <div className="px-3 pb-3 pop">
@@ -1453,102 +1707,122 @@ export default function PerfectSweep() {
                 </span>
                 <span className="eyebrow ml-2">OVR {teamRating(gauntlet[gi]).toFixed(0)}</span>
               </div>
-              <button onClick={playNext} className="btnP skew dsp9 text-xl px-10 py-3">
-                <span className="unskew">🏀 PLAY {ROUNDS[gi]} ▸</span>
+              <button onClick={playNext} className="btnP skew dsp9 text-base sm:text-xl px-6 sm:px-10 py-3 w-full max-w-sm mx-auto sm:w-auto">
+                <span className="unskew">🏀 PLAY {ROUNDS[gi]}<BtnArrow /></span>
               </button>
             </div>
           )}
 
-          {/* endings */}
-          {screen === "done" && (
-            <div className="text-center mt-8 pop">
-              {perfect ? (<>
-                <div className="dsp9" style={{
-                  fontSize: 84, lineHeight: 1,
-                  background: "linear-gradient(180deg,#fff 25%,#ff8b98 55%,#E8465A)",
-                  WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-                  filter: "drop-shadow(0 6px 30px rgba(232,70,90,.4))" }}>8 × 10</div>
-                <div className="dsp9 text-3xl" style={{ color: "#ff8b98" }}>THE PERFECT SWEEP</div>
-                <p className="mt-2" style={{ color: "#93a1b5" }}>World champions. Eight wins, every one by double digits. Immortal.</p>
-              </>) : eliminated ? (<>
-                <div className="dsp9 text-4xl" style={{ color: "#f08a8a" }}>{groupOut ? "OUT IN THE GROUP STAGE" : r2Out ? "OUT IN THE 2ND ROUND" : "ELIMINATED"}</div>
-                <p className="mt-2" style={{ color: "#93a1b5" }}>
-                  {groupOut ? "Finished outside the top 2 of your group — the tournament goes on without you." : r2Out ? "Outside the top 2 of the 2nd-round group — the quarterfinals go on without you." : `${wins} win${wins !== 1 ? "s" : ""} — the World Cup claims another five.`}
-                </p>
-              </>) : (<>
-                <div className="dsp9 text-4xl" style={{ color: "#e8d48a" }}>WORLD CHAMPIONS — 8–0</div>
-                <p className="mt-2" style={{ color: "#93a1b5" }}>Unbeaten through all eight, but not every win hit double digits. The Perfect Sweep escapes you.</p>
-              </>)}
-              <div className="flex justify-center gap-3 mt-6">
-                <button onClick={() => setShowCard(true)} className="skew chip dsp9 text-lg px-8 py-3 btnP">
-                  <span className="unskew">🏆 TOURNAMENT CARD</span>
-                </button>
-                <button onClick={reset} className="skew chip dsp9 text-lg px-8 py-3 btnG">
-                  <span className="unskew">RUN IT BACK ▸</span>
-                </button>
+          {/* endings — compact recap */}
+          {screen === "done" && runStats && (
+            <div className="mt-4 pop">
+              <div className="flex flex-col gap-2 mb-4">
+                {games.map((g, i) => <MatchSummaryCard key={i} g={g} i={i} />)}
               </div>
 
-              {/* ===== tournament card modal ===== */}
-              {showCard && runStats && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
-                  style={{ background: "rgba(5,7,11,.82)", backdropFilter: "blur(3px)" }}
-                  onClick={() => setShowCard(false)}>
-                  <div className="panel text-left p-5 pop w-full overflow-y-auto"
-                    style={{ maxWidth: 620, maxHeight: "90vh" }}
-                    onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div>
-                        <div className="dsp9 text-xl" style={{ color: "#fff" }}>TOURNAMENT CARD</div>
-                        <div className="eyebrow">{runStats.resultLabel} · {runStats.emoji} · {rolls} ROLLS</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={shareLink} className="skew chip dsp px-4 py-1.5 text-sm btnP" style={{ minWidth: 130, textAlign: "center" }}>
-                          <span className="unskew">{linkCopied ? "✓ LINK COPIED" : "🔗 SHARE"}</span>
-                        </button>
-                        <button onClick={() => setShowCard(false)} className="dsp text-lg px-2"
-                          style={{ color: "#5f6b7d", background: "none", border: "none", cursor: "pointer" }}
-                          title="Close">✕</button>
-                      </div>
-                    </div>
+              <RunSummaryHero
+                perfect={perfect}
+                eliminated={eliminated}
+                groupOut={groupOut}
+                r2Out={r2Out}
+                runStats={runStats}
+              />
 
-                    {/* player stat rows */}
-                    {runStats.players.map((p) => (
-                      <div key={p.pos + p.name} className="flex items-center gap-3 px-2 py-2"
-                        style={{ borderTop: "1px solid #1c2333" }}>
-                        <Gem rt={p.rt} size={32} />
-                        <div className="flex-1 min-w-0">
-                          <div className="dsp text-base truncate" style={{ color: "#fff" }}>
-                            {p.pos} · #{p.n} {p.name}
-                          </div>
-                          <div className="text-[11px]" style={{ color: "#5f6b7d" }}>{p.team} '{p.season.slice(2)}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="dsp9 text-lg" style={{ color: "#ff8b98" }}>{p.ppg.toFixed(1)} <span className="text-xs" style={{ color: "#5f6b7d" }}>PPG</span></div>
-                          <div className="text-[11px]" style={{ color: "#5f6b7d" }}>BEST {p.best} · TOTAL {p.tot}</div>
-                        </div>
-                      </div>
-                    ))}
+              <p className="text-center mt-4 text-sm px-2" style={{ color: "#93a1b5" }}>
+                {perfect
+                  ? "World champions. Eight wins, every one by double digits. Immortal."
+                  : eliminated
+                    ? (groupOut
+                      ? "Finished outside the top 2 of your group — the tournament goes on without you."
+                      : r2Out
+                        ? "Outside the top 2 of the 2nd-round group — the quarterfinals go on without you."
+                        : `${wins} win${wins !== 1 ? "s" : ""} — the World Cup claims another five.`)
+                    : "Unbeaten through all eight, but not every win hit double digits. The Perfect Sweep escapes you."}
+              </p>
 
-                    {/* team stat strip */}
-                    <div className="grid grid-cols-5 gap-2 mt-3 pt-3" style={{ borderTop: "1px solid #232b3d" }}>
-                      {[
-                        [`OVR ${runStats.ovr}`, "TEAM RATING"],
-                        [runStats.ppgF.toFixed(1), "PTS FOR / G"],
-                        [runStats.ppgA.toFixed(1), "PTS AGAINST / G"],
-                        [`${runStats.avgMargin > 0 ? "+" : ""}${runStats.avgMargin.toFixed(1)}`, "AVG MARGIN"],
-                        [`+${runStats.bigWin}`, "BIGGEST WIN"],
-                      ].map(([v, l]) => (
-                        <div key={l} className="text-center">
-                          <div className="dsp9 text-xl" style={{ color: "#EAF0F7" }}>{v}</div>
-                          <div className="eyebrow" style={{ fontSize: 9 }}>{l}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="mt-6 flex flex-col gap-3">
+                <button onClick={() => setScreen("card")} className="btnP skew dsp9 text-lg px-8 py-3.5 w-full">
+                  <span className="unskew whitespace-nowrap">🏆{"\u00A0"}TOURNAMENT CARD<BtnArrow /></span>
+                </button>
+                <button onClick={reset} className="skew chip dsp9 text-base px-6 py-2.5 btnG w-full sm:w-auto sm:self-start">
+                  <span className="unskew whitespace-nowrap">⟳{"\u00A0"}RUN IT BACK</span>
+                </button>
+              </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ============ TOURNAMENT CARD ============ */}
+      {screen === "card" && runStats && (
+        <div className="max-w-3xl mx-auto px-4 py-6 pop">
+          <div className="panel text-left p-5">
+            <div className="mb-3">
+              <div className="flex items-center gap-2">
+                <button onClick={() => setScreen("done")} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
+                  <span className="unskew">← BACK</span>
+                </button>
+                <div className="flex-1 flex justify-center min-w-0 px-1">
+                  <span className="cardRunMeta truncate" style={{ fontSize: 11, letterSpacing: ".05em" }}>
+                    {runStats.resultLabel}
+                  </span>
+                </div>
+                <button onClick={shareLink} className="skew chip dsp px-4 py-1.5 text-sm btnP shrink-0" style={{ textAlign: "center" }}>
+                  <span className="unskew">{linkCopied ? "✓ LINK COPIED" : "🔗 SHARE"}</span>
+                </button>
+              </div>
+              <div className="cardRunMeta mt-3 sm:mt-2">
+                <span className="flex gap-2">
+                  {runStats.margins.map((m, i) => (
+                    <span key={i} style={{ color: marginColor(m) }}>
+                      {m > 0 ? `+${m}` : m}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            </div>
+
+            {runStats.players.map((p) => (
+              <div key={p.pos + p.name} className="flex items-center gap-3 px-2 py-2"
+                style={{ borderTop: "1px solid #1c2333" }}>
+                <Gem rt={p.rt} size={32} />
+                <div className="flex-1 min-w-0">
+                  <div className="dsp text-base truncate" style={{ color: "#fff" }}>
+                    {p.pos} · #{p.n} {p.name}
+                  </div>
+                  <div className="text-[11px]" style={{ color: "#5f6b7d" }}>{p.team} '{p.season.slice(2)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="dsp9 text-lg" style={{ color: "#ff8b98" }}>{p.ppg.toFixed(1)} <span className="text-xs" style={{ color: "#5f6b7d" }}>PPG</span></div>
+                  <div className="text-[11px]" style={{ color: "#5f6b7d" }}>BEST {p.best} · TOTAL {p.tot}</div>
+                </div>
+              </div>
+            ))}
+
+            <div className="grid grid-cols-5 gap-2 mt-3 pt-3" style={{ borderTop: "1px solid #232b3d" }}>
+              {[
+                [`OVR ${runStats.ovr}`, "TEAM RATING"],
+                [runStats.ppgF.toFixed(1), "PTS FOR / G"],
+                [runStats.ppgA.toFixed(1), "PTS AGAINST / G"],
+                [`${runStats.avgMargin > 0 ? "+" : ""}${runStats.avgMargin.toFixed(1)}`, "AVG MARGIN"],
+                [`+${runStats.bigWin}`, "BIGGEST WIN"],
+              ].map(([v, l]) => (
+                <div key={l} className="text-center">
+                  <div className="dsp9 text-xl" style={{ color: "#EAF0F7" }}>{v}</div>
+                  <div className="eyebrow" style={{ fontSize: 9 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 mt-6 px-4 max-w-md sm:max-w-none mx-auto">
+            <button onClick={() => setScreen("done")} className="skew chip dsp9 text-base sm:text-lg px-6 sm:px-8 py-3 btnG">
+              <span className="unskew whitespace-nowrap">← BACK TO RESULTS</span>
+            </button>
+            <button onClick={reset} className="skew chip dsp9 text-base sm:text-lg px-6 sm:px-8 py-3 btnP">
+              <span className="unskew whitespace-nowrap">RUN IT BACK<BtnArrow /></span>
+            </button>
+          </div>
         </div>
       )}
 
