@@ -195,9 +195,33 @@ function simGame(myRt, style, opp, roundIdx) {
   const noise = () => (Math.random() - 0.5) * 22;
   let my = Math.round(base + diff / 2 + style.off + noise());
   let op = Math.round(base - diff / 2 - style.def + noise());
-  if (my === op) my += Math.random() > 0.5 ? 2 : -2;
   my = Math.max(58, my); op = Math.max(58, op);
   return { my, op, opp, myQ: splitQ(my), opQ: splitQ(op) };
+}
+
+/* FIBA overtime: 5 minutes per period until someone leads */
+function simOvertimePeriod(myRt, style, oppRt) {
+  const diff = (myRt + style.off - oppRt) * 0.7;
+  const noise = () => (Math.random() - 0.5) * 10;
+  const myOT = Math.max(0, Math.round(11 + diff / 4 + noise()));
+  const opOT = Math.max(0, Math.round(11 - diff / 4 + noise()));
+  return { myOT, opOT };
+}
+
+function resolveOvertime(my, op, myRt, style, oppRt) {
+  const otMy = [];
+  const otOp = [];
+  let periods = 0;
+  while (my === op && periods < 8) {
+    periods++;
+    const { myOT, opOT } = simOvertimePeriod(myRt, style, oppRt);
+    otMy.push(myOT);
+    otOp.push(opOT);
+    my += myOT;
+    op += opOT;
+  }
+  if (my === op) my += Math.random() > 0.5 ? 2 : 1; // safety after 8 OTs
+  return { my, op, otMy, otOp, otPeriods: periods };
 }
 
 const splitQ = (tot) => {
@@ -486,7 +510,22 @@ function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed) {
   const base = simGame(myRt, style, opp, gi);
   const ctx = { gi, style, myRt, oppRt: teamRating(opp), gamesPlayed };
   const { myQ, my, fired } = applyLineupTraits(lineup, base.myQ, base.opQ, ctx);
-  return { ...base, my, myQ, traitFired: fired };
+  let finalMy = my;
+  let finalOp = qSum(base.opQ);
+  const regMy = finalMy;
+  const regOp = finalOp;
+  let otMy = [];
+  let otOp = [];
+  let otPeriods = 0;
+  if (finalMy === finalOp) {
+    const ot = resolveOvertime(finalMy, finalOp, myRt, style, ctx.oppRt);
+    finalMy = ot.my;
+    finalOp = ot.op;
+    otMy = ot.otMy;
+    otOp = ot.otOp;
+    otPeriods = ot.otPeriods;
+  }
+  return { ...base, my: finalMy, op: finalOp, myQ, regMy, regOp, otMy, otOp, otPeriods, traitFired: fired };
 }
 
 function boxScore(lineup, total) {
@@ -524,19 +563,35 @@ function buildEvents(g, box, opp) {
     pts === 3 ? rndT([`${oppName} answers from downtown`, `${oppName} hits a deep three`]) :
     pts === 1 ? `${oppName} converts at the line` :
     rndT([`${oppName} scores inside`, `${oppName} gets to the rim`, `${oppName} hits a tough jumper`]);
-  return [
-    ...buckets(g.my).map((p) => ({ team: "me", pts: p })),
-    ...buckets(g.op).map((p) => ({ team: "op", pts: p })),
-  ]
-    .map((e) => ({ ...e, sec: Math.floor(Math.random() * 2400) }))
-    .sort((a, b) => a.sec - b.sec)
-    .map((e) => {
-      const q = Math.min(4, Math.floor(e.sec / 600) + 1);
-      const rem = 600 - (e.sec % 600);
-      const clock = `Q${q} ${Math.floor(rem / 60)}:${String(rem % 60).padStart(2, "0")}`;
-      const text = e.team === "me" ? myText(pickScorer().name, e.pts) : opText(e.pts);
-      return { ...e, q, clock, text };
-    });
+  const regMy = g.regMy ?? g.my;
+  const regOp = g.regOp ?? g.op;
+  const stamp = (e, sec) => {
+    const q = Math.min(4, Math.floor(sec / 600) + 1);
+    const rem = 600 - (sec % 600);
+    const clock = sec < 2400
+      ? `Q${q} ${Math.floor(rem / 60)}:${String(rem % 60).padStart(2, "0")}`
+      : (() => {
+          const otSec = sec - 2400;
+          const otNum = Math.floor(otSec / 300) + 1;
+          const otRem = 300 - (otSec % 300);
+          return `OT${otNum} ${Math.floor(otRem / 60)}:${String(otRem % 60).padStart(2, "0")}`;
+        })();
+    const text = e.team === "me" ? myText(pickScorer().name, e.pts) : opText(e.pts);
+    return { ...e, sec, q: sec < 2400 ? q : 4 + Math.floor((sec - 2400) / 300), clock, text };
+  };
+  const regEvs = [
+    ...buckets(regMy).map((p) => ({ team: "me", pts: p })),
+    ...buckets(regOp).map((p) => ({ team: "op", pts: p })),
+  ].map((e) => stamp(e, Math.floor(Math.random() * 2400)));
+  const otEvs = (g.otMy || []).flatMap((myOT, i) => {
+    const opOT = g.otOp[i];
+    const base = 2400 + i * 300;
+    return [
+      ...buckets(myOT).map((p) => stamp({ team: "me", pts: p }, base + Math.floor(Math.random() * 300))),
+      ...buckets(opOT).map((p) => stamp({ team: "op", pts: p }, base + Math.floor(Math.random() * 300))),
+    ];
+  });
+  return [...regEvs, ...otEvs].sort((a, b) => a.sec - b.sec);
 }
 
 function chunkEvents(evs, n) {
@@ -664,7 +719,14 @@ function buildStory(g, box, style) {
     `It slipped away in the ${["1st", "2nd", "3rd", "4th"][g.opQ.indexOf(Math.max(...g.opQ))]} quarter — ${oppN} went on the decisive run.`,
   ]);
   const traitLine = significantTraitRecap(g.traitFired, oppN);
-  return traitLine ? `${story} ${traitLine}` : story;
+  let out = traitLine ? `${story} ${traitLine}` : story;
+  if (g.otPeriods > 0) {
+    const otNote = g.otPeriods === 1
+      ? " Regulation ended tied — it took one five-minute overtime to settle it."
+      : ` Regulation ended tied — it took ${g.otPeriods} overtimes before someone finally broke through.`;
+    out += otNote;
+  }
+  return out;
 }
 
 /* ============ 2K-STYLE UI ============ */
@@ -1211,11 +1273,11 @@ export default function PerfectSweep() {
                   </div>
                 </div>
                 <div className="flex justify-between px-4 py-1.5 text-[11px]" style={{ color: "#5f6b7d" }}>
-                  <span>Q {g.myQ.join(" · ")}</span>
+                  <span>Q {g.myQ.join(" · ")}{g.otMy?.length ? ` · OT ${g.otMy.join(" · ")}` : ""}</span>
                   <span className="dsp" style={{ color: "#93a1b5" }}>
                     {g.box.slice(0, 3).map((p) => `${p.name} ${p.pts}`).join("  ·  ")}
                   </span>
-                  <span>Q {g.opQ.join(" · ")}</span>
+                  <span>Q {g.opQ.join(" · ")}{g.otOp?.length ? ` · OT ${g.otOp.join(" · ")}` : ""}</span>
                 </div>
                 {g.story && (
                   <div className="px-4 py-2.5 text-sm" style={{
