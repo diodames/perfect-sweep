@@ -164,6 +164,26 @@ const TEAMS = [
   ]},
 ];
 
+/* 1992 Olympic "Dream Team" — scraped from Wikipedia roster; bonus opponent only */
+const DREAM_TEAM_ROUND = "FACE THE DREAM TEAM";
+const DREAM_TEAM = {
+  name: "DREAM TEAM",
+  season: "1992",
+  c: "#B31942",
+  alt: "#FFD700",
+  players: [
+    { n: 14, name: "Magic Johnson", pos: "PG", rt: 97 },
+    { n: 9, name: "Michael Jordan", pos: "SG", rt: 99, trait: "fibaLegend" },
+    { n: 8, name: "Scottie Pippen", pos: "SF", rt: 96 },
+    { n: 4, name: "Charles Barkley", pos: "PF", rt: 96 },
+    { n: 5, name: "David Robinson", pos: "C", rt: 96 },
+    { n: 7, name: "Larry Bird", pos: "SF", rt: 97 },
+  ],
+};
+
+const OPPONENTS = [...TEAMS, DREAM_TEAM];
+const isDreamGame = (g) => g.round === DREAM_TEAM_ROUND;
+
 const SLOTS = ["PG", "SG", "SF", "PF", "C"];
 const STYLES = [
   { id: "run", label: "RUN & GUN", desc: "Fast pace, big scores — both ways", off: 6, def: -4, pace: 14 },
@@ -172,7 +192,7 @@ const STYLES = [
 ];
 const ROUNDS = ["GROUP GAME 1", "GROUP GAME 2", "GROUP GAME 3", "2ND ROUND — GAME 1", "2ND ROUND — GAME 2", "QUARTERFINAL", "SEMIFINAL", "THE FINAL"];
 
-const TEAM_INDEX = Object.fromEntries(TEAMS.map((t, i) => [`${t.name}|${t.season}`, i]));
+const TEAM_INDEX = Object.fromEntries(OPPONENTS.map((t, i) => [`${t.name}|${t.season}`, i]));
 
 function lineupPlayerRef(lineup, slot) {
   const p = lineup[slot];
@@ -225,13 +245,17 @@ function decodeRunShare(search) {
 
     const games = p.m.map((row, i) => {
       const [my, op, oi, ...boxPts] = row;
-      const opp = TEAMS[oi];
+      const opp = OPPONENTS[oi];
       if (!opp) return null;
       const box = SLOTS.map((s, j) => {
         const pl = lineup[s];
         return pl ? { name: pl.name, n: pl.n, pts: boxPts[j] ?? 0 } : null;
       }).filter(Boolean);
-      return { my, op, opp, round: ROUNDS[i] || ROUNDS[ROUNDS.length - 1], box };
+      return {
+        my, op, opp,
+        round: ROUNDS[i] || (oi >= TEAMS.length ? DREAM_TEAM_ROUND : ROUNDS[ROUNDS.length - 1]),
+        box,
+      };
     }).filter(Boolean);
     if (!games.length) return null;
 
@@ -863,9 +887,10 @@ const css = `
 .matchCardScoreNum{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
   font-size:1.2rem;white-space:nowrap;line-height:1;}
 .matchCardScoreIcon{font-family:'Saira Condensed',sans-serif;font-size:.95rem;line-height:1;flex-shrink:0;}
-.runHero{text-align:center;}
+.runHero{text-align:center;position:relative;}
+.runHeroAccent{position:absolute;top:0;left:14px;right:0;height:2px;pointer-events:none;}
 .runHeroRecord{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
-  font-size:clamp(2.75rem,14vw,4.5rem);line-height:1;}
+  font-size:clamp(2.75rem,14vw,4.5rem);line-height:1;-webkit-text-fill-color:currentColor;}
 .runHeroStats{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:1rem;padding-top:1rem;}
 .runHeroStatVal{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;font-size:1.5rem;}
 .runHeroStatLbl{font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
@@ -880,7 +905,8 @@ const css = `
 
 const BtnArrow = () => <span className="whitespace-nowrap">{"\u00A0"}▸</span>;
 
-function roundShortLabel(i) {
+function roundShortLabel(i, round) {
+  if (round === DREAM_TEAM_ROUND) return "DREAM";
   if (i < 3) return "GROUPS";
   if (i < 5) return "2ND RD";
   if (i === 5) return "QF";
@@ -892,6 +918,12 @@ function roundGameIndex(i) {
   if (i < 3) return i + 1;
   if (i < 5) return i - 2;
   return null;
+}
+
+function gameMarginLabel(g, i) {
+  if (isDreamGame(g)) return g.my > g.op ? "BONUS WIN" : "DREAM TEAM WINS";
+  if (g.my > g.op) return g.my - g.op >= 10 ? "✓ DOUBLE-DIGIT WIN" : "WIN UNDER 10 — SWEEP GONE";
+  return i < 3 ? "GROUP LOSS — TABLE DECIDES" : i < 5 ? "2ND ROUND LOSS — TABLE DECIDES" : "ELIMINATED";
 }
 
 const GAME_RESULT_STYLES = {
@@ -925,7 +957,7 @@ const MatchSummaryCard = ({ g, i }) => {
   return (
     <div className="matchCard panel slideL">
       <div className="matchCardRound">
-        <span className="eyebrow">{roundShortLabel(i)}</span>
+        <span className="eyebrow">{roundShortLabel(i, g.round)}</span>
         {subIdx != null && <span className="eyebrow" style={{ color: "#93a1b5", fontSize: 8 }}>· G{subIdx}</span>}
       </div>
       <div className="matchCardBody">
@@ -950,10 +982,20 @@ const MatchSummaryCard = ({ g, i }) => {
   );
 };
 
+const RUN_HERO_THEMES = {
+  sweep: { color: "#7ee2a8", stroke: "#2c5c40" },
+  close: { color: "#e8d48a", stroke: "#5c4f28" },
+  loss: { color: "#f08a8a", stroke: "#5c2c34" },
+};
+
+function runOutcomeKey(perfect, eliminated) {
+  if (perfect) return "sweep";
+  if (eliminated) return "loss";
+  return "close";
+}
+
 function runOutcomeTheme(perfect, eliminated) {
-  if (perfect) return GAME_RESULT_STYLES.sweep;
-  if (eliminated) return GAME_RESULT_STYLES.loss;
-  return GAME_RESULT_STYLES.close;
+  return RUN_HERO_THEMES[runOutcomeKey(perfect, eliminated)];
 }
 
 const RunSummaryHero = ({ perfect, eliminated, groupOut, r2Out, runStats }) => {
@@ -983,7 +1025,8 @@ const RunSummaryHero = ({ perfect, eliminated, groupOut, r2Out, runStats }) => {
   }
 
   return (
-    <div className="runHero panel p-4 sm:p-5" style={{ borderTop: theme.border.replace("1px solid", "2px solid") }}>
+    <div className="runHero panel p-4 sm:p-5">
+      <div className="runHeroAccent" style={{ background: theme.stroke }} aria-hidden />
       <div className="eyebrow mb-1" style={{ letterSpacing: ".14em", color: theme.color, opacity: 0.8 }}>{headline}</div>
       <div className="runHeroRecord" style={{ color: theme.color }}>{record}</div>
       <div className="dsp text-sm mt-2" style={{ color: theme.color, opacity: 0.85 }}>{subLabel}</div>
@@ -1036,6 +1079,10 @@ export default function PerfectSweep() {
   const [seenYears, setSeenYears] = useState([]);
   const [openFlow, setOpenFlow] = useState({});
   const [linkCopied, setLinkCopied] = useState(false);
+  const [dreamTeamMode, setDreamTeamMode] = useState(false);
+  const [dreamGamePlayed, setDreamGamePlayed] = useState(
+    () => !!(shareInit?.games?.some(isDreamGame)),
+  );
   const runId = useRef(0);
 
   const cur = deck[0];
@@ -1192,18 +1239,22 @@ export default function PerfectSweep() {
     const lu = SLOTS.map((s) => lineup[s]);
     const g = simGameWithTraits(lu, myRt, style, gauntlet[gi], gi, games.length);
     const box = boxScore(lu, g.my);
-    if (speed === "fast") { commitGame(g, box); return; } // fast: result only
+    runLiveGame(g, box, ROUNDS[gi], (result, resultBox) => commitGame(result, resultBox));
+  };
+
+  const runLiveGame = (g, box, roundLabel, onCommit) => {
+    if (speed === "fast") { onCommit(g, box); return; }
 
     const evs = buildEvents(g, box, g.opp);
     const steps = chunkEvents(evs, speed === "medium" ? 40 : 28);
     const delay = speed === "medium" ? 65 : 700;
     const id = ++runId.current;
-    setLive({ opp: g.opp, round: ROUNDS[gi], my: 0, op: 0, clock: "Q1 10:00", feed: [] });
+    setLive({ opp: g.opp, round: roundLabel, my: 0, op: 0, clock: "Q1 10:00", feed: [] });
     let k = 0;
     const step = () => {
-      if (id !== runId.current) return; // run was reset
+      if (id !== runId.current) return;
       if (k >= steps.length) {
-        setTimeout(() => { if (id !== runId.current) return; setLive(null); commitGame(g, box); }, speed === "medium" ? 300 : 800);
+        setTimeout(() => { if (id !== runId.current) return; setLive(null); onCommit(g, box); }, speed === "medium" ? 300 : 800);
         return;
       }
       const st = steps[k++];
@@ -1216,6 +1267,29 @@ export default function PerfectSweep() {
       setTimeout(step, delay);
     };
     setTimeout(step, delay);
+  };
+
+  const faceDreamTeam = () => {
+    setDreamTeamMode(true);
+    setScreen("sim");
+  };
+
+  const commitDreamGame = (g, box) => {
+    const flow = buildFlow(buildEvents(g, box, g.opp));
+    const next = [...games, { ...g, box, round: DREAM_TEAM_ROUND, story: buildStory(g, box, style), flow }];
+    setGames(next);
+    setDreamTeamMode(false);
+    setDreamGamePlayed(true);
+    setScreen("done");
+  };
+
+  const playDreamTeam = () => {
+    if (live) return;
+    const lu = SLOTS.map((s) => lineup[s]);
+    const tCount = games.filter((x) => !isDreamGame(x)).length;
+    const g = simGameWithTraits(lu, myRt, style, DREAM_TEAM, 8, tCount);
+    const box = boxScore(lu, g.my);
+    runLiveGame(g, box, DREAM_TEAM_ROUND, commitDreamGame);
   };
 
   const shareLink = () => {
@@ -1244,39 +1318,43 @@ export default function PerfectSweep() {
     runId.current++; setLive(null); setLinkCopied(false); setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
     setNationSwapUsed(false); setYearSwapUsed(false); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false);
     setPickedThisRoll(false); setSeenNations([]); setSeenYears([]); setOpenFlow({});
+    setDreamTeamMode(false); setDreamGamePlayed(false);
     window.history.replaceState(null, "", window.location.pathname);
   };
 
-  const wins = games.filter((g) => g.my > g.op).length;
-  const perfect = wins === 8 && games.every((g) => g.my - g.op >= 10);
-  const lastG = games[games.length - 1];
-  const eliminated = groupOut || r2Out || (games.length > 5 && lastG.my < lastG.op);
+  const tournamentGames = games.filter((g) => !isDreamGame(g));
+  const dreamGame = games.find(isDreamGame);
+  const wins = tournamentGames.filter((g) => g.my > g.op).length;
+  const perfect = tournamentGames.length === 8 && tournamentGames.every((g) => g.my - g.op >= 10);
+  const lastG = tournamentGames[tournamentGames.length - 1];
+  const eliminated = groupOut || r2Out || (tournamentGames.length > 5 && lastG && lastG.my < lastG.op);
 
   /* ---- end-of-run stats ---- */
   const runStats = useMemo(() => {
-    if ((screen !== "done" && screen !== "card") || !games.length) return null;
+    if ((screen !== "done" && screen !== "card") || !tournamentGames.length) return null;
+    const tg = tournamentGames;
     const players = SLOTS.map((s) => lineup[s]).filter(Boolean).map((p) => {
-      const per = games.map((g) => g.box.find((b) => b.name === p.name && b.n === p.n)?.pts || 0);
+      const per = tg.map((g) => g.box.find((b) => b.name === p.name && b.n === p.n)?.pts || 0);
       const tot = per.reduce((a, b) => a + b, 0);
-      return { ...p, tot, ppg: tot / games.length, best: Math.max(...per) };
+      return { ...p, tot, ppg: tot / tg.length, best: Math.max(...per) };
     }).sort((a, b) => b.ppg - a.ppg);
-    const pf = games.reduce((s, g) => s + g.my, 0), pa = games.reduce((s, g) => s + g.op, 0);
-    const margins = games.map((g) => g.my - g.op);
+    const pf = tg.reduce((s, g) => s + g.my, 0), pa = tg.reduce((s, g) => s + g.op, 0);
+    const margins = tg.map((g) => g.my - g.op);
     const resultLabel = perfect ? "THE PERFECT SWEEP — 8×10"
-      : eliminated ? (groupOut ? "OUT IN THE GROUP STAGE" : r2Out ? "OUT IN THE 2ND ROUND" : `ELIMINATED — ${games[games.length - 1].round}`)
+      : eliminated ? (groupOut ? "OUT IN THE GROUP STAGE" : r2Out ? "OUT IN THE 2ND ROUND" : `ELIMINATED — ${tournamentGames[tournamentGames.length - 1].round}`)
       : "WORLD CHAMPIONS — 8–0";
     return {
       players, resultLabel,
-      w: wins, l: games.length - wins,
+      w: wins, l: tg.length - wins,
       totalPF: pf, totalPA: pa,
-      ppgF: pf / games.length, ppgA: pa / games.length,
-      avgMargin: margins.reduce((a, b) => a + b, 0) / games.length,
+      ppgF: pf / tg.length, ppgA: pa / tg.length,
+      avgMargin: margins.reduce((a, b) => a + b, 0) / tg.length,
       bigWin: Math.max(...margins),
       sweepWins: margins.filter((m) => m >= 10).length,
       margins,
       ovr: Math.round(myRt),
     };
-  }, [screen, games, lineup, wins, perfect, eliminated, groupOut, r2Out, myRt]);
+  }, [screen, games, tournamentGames, lineup, wins, perfect, eliminated, groupOut, r2Out, myRt]);
 
 
 
@@ -1491,6 +1569,19 @@ export default function PerfectSweep() {
                 </div>
               );
             })}
+            {(perfect || dreamTeamMode || dreamGamePlayed) && (() => {
+              const g = dreamGame;
+              const state = !g ? "up" : gameResultState(g);
+              const sty = {
+                up: { background: "#151b29", color: "#FFD700", border: "1px solid #5c4f28" },
+                ...GAME_RESULT_STYLES,
+              }[state];
+              return (
+                <div className="chip dsp text-[10px] px-2.5 py-1 text-center" style={{ ...sty, minWidth: 72 }}>
+                  DREAM TEAM{g && <div className="dsp9 text-sm" style={{ fontStyle: "italic" }}>{g.my}–{g.op}</div>}
+                </div>
+              );
+            })()}
           </div>
 
           {/* played games — broadcast scoreboards */}
@@ -1500,9 +1591,7 @@ export default function PerfectSweep() {
                 <div className="flex items-center justify-between px-4 pt-2">
                   <span className="eyebrow">{g.round}</span>
                   <span className="dsp text-xs" style={{ color: marginColor(g.my - g.op) }}>
-                    {g.my > g.op
-                      ? (g.my - g.op >= 10 ? "✓ DOUBLE-DIGIT WIN" : "WIN UNDER 10 — SWEEP GONE")
-                      : (i < 3 ? "GROUP LOSS — TABLE DECIDES" : i < 5 ? "2ND ROUND LOSS — TABLE DECIDES" : "ELIMINATED")}
+                    {gameMarginLabel(g, i)}
                   </span>
                 </div>
                 {/* scoreboard bar */}
@@ -1691,7 +1780,22 @@ export default function PerfectSweep() {
           )}
 
           {/* next game */}
-          {screen === "sim" && !live && (
+          {screen === "sim" && !live && dreamTeamMode && (
+            <div className="panel text-center mt-5 p-5">
+              <div className="eyebrow mb-1">BONUS GAME — FACE THE DREAM TEAM</div>
+              <div className="dsp9 text-2xl mb-3" style={{ color: "#fff" }}>
+                YOUR FIVE <span style={{ color: "#E8465A" }}>VS</span>{" "}
+                <span style={{ color: oppColor(DREAM_TEAM) }}>
+                  {DREAM_TEAM.name} '{DREAM_TEAM.season.slice(2)}
+                </span>
+                <span className="eyebrow ml-2">OVR {teamRating(DREAM_TEAM).toFixed(0)}</span>
+              </div>
+              <button onClick={playDreamTeam} className="btnP skew dsp9 text-base sm:text-xl px-6 sm:px-10 py-3 w-full max-w-sm mx-auto sm:w-auto">
+                <span className="unskew">🏀 PLAY THE DREAM TEAM<BtnArrow /></span>
+              </button>
+            </div>
+          )}
+          {screen === "sim" && !live && !dreamTeamMode && tournamentGames.length < 8 && (
             <div className="panel text-center mt-5 p-5">
               <div className="eyebrow mb-1">NEXT UP — {ROUNDS[gi]}</div>
               <div className="dsp9 text-2xl mb-3" style={{ color: "#fff" }}>
@@ -1724,7 +1828,11 @@ export default function PerfectSweep() {
 
               <p className="text-center mt-4 text-sm px-2" style={{ color: "#93a1b5" }}>
                 {perfect
-                  ? "World champions. Eight wins, every one by double digits. Immortal."
+                  ? dreamGamePlayed && dreamGame
+                    ? dreamGame.my > dreamGame.op
+                      ? "You beat the Dream Team. There is nothing left to prove."
+                      : "The Dream Team wins again. Some legends are untouchable."
+                    : "World champions! Eight wins, every one by double digits. So the remaining question is. Are you better than the legendary Dream Team?"
                   : eliminated
                     ? (groupOut
                       ? "Finished outside the top 2 of your group — the tournament goes on without you."
@@ -1735,8 +1843,13 @@ export default function PerfectSweep() {
               </p>
 
               <div className="mt-6 flex flex-col gap-3">
-                <button onClick={() => setScreen("card")} className="btnP skew dsp9 text-lg px-8 py-3.5 w-full">
-                  <span className="unskew whitespace-nowrap">🏆{"\u00A0"}TOURNAMENT CARD<BtnArrow /></span>
+                {perfect && !dreamGamePlayed && (
+                  <button onClick={faceDreamTeam} className="btnP skew dsp9 text-lg px-8 py-3.5 w-full">
+                    <span className="unskew whitespace-nowrap">🏀{"\u00A0"}FACE THE DREAM TEAM<BtnArrow /></span>
+                  </button>
+                )}
+                <button onClick={() => setScreen("card")} className={`skew dsp9 text-lg px-8 py-3.5 w-full ${perfect && !dreamGamePlayed ? "chip btnG" : "btnP"}`}>
+                  <span className="unskew whitespace-nowrap">🏆{"\u00A0"}TOURNAMENT CARD{perfect && !dreamGamePlayed ? "" : <BtnArrow />}</span>
                 </button>
                 <button onClick={reset} className="skew chip dsp9 text-base px-6 py-2.5 btnG w-full sm:w-auto sm:self-start">
                   <span className="unskew whitespace-nowrap">⟳{"\u00A0"}RUN IT BACK</span>
