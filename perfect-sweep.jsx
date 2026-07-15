@@ -863,14 +863,13 @@ const css = `
 .matchCardScoreNum{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
   font-size:1.2rem;white-space:nowrap;line-height:1;}
 .matchCardScoreIcon{font-family:'Saira Condensed',sans-serif;font-size:.95rem;line-height:1;flex-shrink:0;}
-.runHero{background:linear-gradient(180deg,#0a0c12 0%,#06080d 100%);border-top:2px solid #E8465A;text-align:center;}
+.runHero{text-align:center;}
 .runHeroRecord{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
-  font-size:clamp(2.75rem,14vw,4.5rem);line-height:1;color:#fff;
-  text-shadow:0 4px 28px rgba(232,70,90,.35);}
-.runHeroStats{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:1rem;padding-top:1rem;border-top:1px solid #1c2333;}
-.runHeroStatVal{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;font-size:1.5rem;color:#ff8b98;}
+  font-size:clamp(2.75rem,14vw,4.5rem);line-height:1;}
+.runHeroStats{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:1rem;padding-top:1rem;}
+.runHeroStatVal{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;font-size:1.5rem;}
 .runHeroStatLbl{font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
-  letter-spacing:.1em;font-size:9px;color:#5f6b7d;margin-top:.15rem;}
+  letter-spacing:.1em;font-size:9px;margin-top:.15rem;opacity:.75;}
 @media (prefers-reduced-motion: no-preference){
   .pop{animation:pop .28s cubic-bezier(.2,.9,.3,1.2);}
   @keyframes pop{from{transform:translateY(10px) scale(.97);opacity:0}to{transform:none;opacity:1}}
@@ -951,57 +950,52 @@ const MatchSummaryCard = ({ g, i }) => {
   );
 };
 
+function runOutcomeTheme(perfect, eliminated) {
+  if (perfect) return GAME_RESULT_STYLES.sweep;
+  if (eliminated) return GAME_RESULT_STYLES.loss;
+  return GAME_RESULT_STYLES.close;
+}
+
 const RunSummaryHero = ({ perfect, eliminated, groupOut, r2Out, runStats }) => {
   if (!runStats) return null;
   const { w, l, ppgF, ppgA, sweepWins } = runStats;
+  const theme = runOutcomeTheme(perfect, eliminated);
 
-  let headline, record, subLabel, statThirdLabel, statThirdValue, recordColor = "#fff";
+  let headline, record, subLabel, statThirdLabel, statThirdValue;
   if (perfect) {
     headline = "THE PERFECT SWEEP";
     record = "8×10";
     subLabel = "8 SWEEPS";
     statThirdLabel = "SWEEPS";
     statThirdValue = sweepWins;
-    recordColor = "#ff8b98";
   } else if (eliminated) {
     headline = groupOut ? "OUT IN THE GROUP STAGE" : r2Out ? "OUT IN THE 2ND ROUND" : "ELIMINATED";
     record = `${w}–${l}`;
     subLabel = `${w} WIN${w !== 1 ? "S" : ""}`;
     statThirdLabel = "WINS";
     statThirdValue = w;
-    recordColor = "#f08a8a";
   } else {
     headline = "WORLD CHAMPIONS";
     record = "8–0";
     subLabel = `${sweepWins} SWEEP${sweepWins !== 1 ? "S" : ""}`;
     statThirdLabel = "SWEEPS";
     statThirdValue = sweepWins;
-    recordColor = "#e8d48a";
   }
 
   return (
-    <div className="runHero panel p-4 sm:p-5">
-      <div className="eyebrow mb-1" style={{ letterSpacing: ".14em", color: "#93a1b5" }}>{headline}</div>
-      <div className="runHeroRecord" style={{
-        color: perfect
-          ? undefined
-          : recordColor,
-        ...(perfect ? {
-          background: "linear-gradient(180deg,#fff 25%,#ff8b98 55%,#E8465A)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-        } : {}),
-      }}>{record}</div>
-      <div className="dsp text-sm mt-2" style={{ color: "#93a1b5" }}>{subLabel}</div>
-      <div className="runHeroStats">
+    <div className="runHero panel p-4 sm:p-5" style={{ borderTop: theme.border.replace("1px solid", "2px solid") }}>
+      <div className="eyebrow mb-1" style={{ letterSpacing: ".14em", color: theme.color, opacity: 0.8 }}>{headline}</div>
+      <div className="runHeroRecord" style={{ color: theme.color }}>{record}</div>
+      <div className="dsp text-sm mt-2" style={{ color: theme.color, opacity: 0.85 }}>{subLabel}</div>
+      <div className="runHeroStats" style={{ borderTop: "1px solid #1c2333" }}>
         {[
           [ppgF.toFixed(1), "PTS FOR / G"],
           [ppgA.toFixed(1), "AGAINST / G"],
           [statThirdValue, statThirdLabel],
         ].map(([v, l]) => (
           <div key={l}>
-            <div className="runHeroStatVal">{v}</div>
-            <div className="runHeroStatLbl">{l}</div>
+            <div className="runHeroStatVal" style={{ color: theme.color }}>{v}</div>
+            <div className="runHeroStatLbl" style={{ color: theme.color }}>{l}</div>
           </div>
         ))}
       </div>
