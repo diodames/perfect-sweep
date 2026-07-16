@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Perfect Sweep">
+  <rect width="32" height="32" fill="#0b0e15"/>
+  <!-- Skewed chip matching .skew + .chip clip-path -->
+  <g transform="translate(16 16) skewX(-8) translate(-16 -16)">
+    <path fill="#E8465A" d="M5.5 8 H26.5 L24.5 24 H3.5 Z"/>
+    <text
+      x="16"
+      y="19.2"
+      text-anchor="middle"
+      font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+      font-weight="900"
+      font-size="10.5"
+      letter-spacing="0.4"
+      fill="#ffffff"
+    >8×10</text>
+  </g>
+</svg>
