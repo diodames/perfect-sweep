@@ -1084,6 +1084,7 @@ export default function PerfectSweep() {
     () => !!(shareInit?.games?.some(isDreamGame)),
   );
   const runId = useRef(0);
+  const ctaAnchorRef = useRef(null);
 
   const cur = deck[0];
   // strictly orthogonal, and never returns a nation/year already shown on this roll
@@ -1313,6 +1314,23 @@ export default function PerfectSweep() {
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, [screen, rolls, groupOut, r2Out, lineup, games]);
+
+  // After a match ends, bring the continue CTA into view (esp. mobile + standings).
+  useEffect(() => {
+    if (live) return;
+    if (screen !== "sim" && screen !== "done") return;
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (cancelled) return;
+        ctaAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 50);
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, [live, screen, games.length, dreamTeamMode, gi]);
 
   const reset = () => {
     runId.current++; setLive(null); setLinkCopied(false); setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
@@ -1781,7 +1799,7 @@ export default function PerfectSweep() {
 
           {/* next game */}
           {screen === "sim" && !live && dreamTeamMode && (
-            <div className="panel text-center mt-5 p-5">
+            <div ref={ctaAnchorRef} className="panel text-center mt-5 p-5">
               <div className="eyebrow mb-1">BONUS GAME — FACE THE DREAM TEAM</div>
               <div className="dsp9 text-2xl mb-3" style={{ color: "#fff" }}>
                 YOUR FIVE <span style={{ color: "#E8465A" }}>VS</span>{" "}
@@ -1796,7 +1814,7 @@ export default function PerfectSweep() {
             </div>
           )}
           {screen === "sim" && !live && !dreamTeamMode && tournamentGames.length < 8 && (
-            <div className="panel text-center mt-5 p-5">
+            <div ref={ctaAnchorRef} className="panel text-center mt-5 p-5">
               <div className="eyebrow mb-1">NEXT UP — {ROUNDS[gi]}</div>
               <div className="dsp9 text-2xl mb-3" style={{ color: "#fff" }}>
                 YOUR FIVE <span style={{ color: "#E8465A" }}>VS</span>{" "}
@@ -1842,7 +1860,7 @@ export default function PerfectSweep() {
                     : "Unbeaten through all eight, but not every win hit double digits. The Perfect Sweep escapes you."}
               </p>
 
-              <div className="mt-6 flex flex-col gap-3">
+              <div ref={ctaAnchorRef} className="mt-6 flex flex-col gap-3">
                 {perfect && !dreamGamePlayed && (
                   <button onClick={faceDreamTeam} className="btnP skew dsp9 text-lg px-8 py-3.5 w-full">
                     <span className="unskew whitespace-nowrap">🏀{"\u00A0"}FACE THE DREAM TEAM<BtnArrow /></span>
