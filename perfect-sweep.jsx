@@ -162,6 +162,52 @@ const TEAMS = [
     { n: 15, name: "Zhou Qi", pos: "C", rt: 77 }, { n: 9, name: "Zhao Rui", pos: "SG", rt: 76 },
     { n: 12, name: "Ding Yanyuhang", pos: "SF", rt: 77 }, { n: 5, name: "Fang Shuo", pos: "SG", rt: 74 },
   ]},
+  /* --- expansion: Europe depth + Africa / Asia / Oceania coverage --- */
+  { name: "Italy", season: "2006", c: "#009246", alt: "#CE2B37", players: [
+    { n: 7, name: "Gianluca Basile", pos: "SG", rt: 85, trait: "flameThrower" }, { n: 5, name: "G. Pozzecco", pos: "PG", rt: 80 },
+    { n: 12, name: "M. Mordente", pos: "SF", rt: 78 }, { n: 14, name: "Denis Marconato", pos: "C", rt: 81 },
+    { n: 15, name: "L. Garri", pos: "PF", rt: 77 }, { n: 8, name: "M. Soragna", pos: "SG", rt: 76 },
+  ]},
+  { name: "Turkey", season: "2010", c: "#E30A17", players: [
+    { n: 6, name: "Hidayet Türkoğlu", pos: "SF", rt: 87, trait: "mrImportant" }, { n: 7, name: "Ömer Aşık", pos: "C", rt: 82 },
+    { n: 23, name: "E. İlyasova", pos: "PF", rt: 82 }, { n: 4, name: "Kerem Tunçeri", pos: "PG", rt: 79 },
+    { n: 10, name: "Ömer Onan", pos: "SG", rt: 78 }, { n: 12, name: "Semih Erden", pos: "PF", rt: 77 },
+  ]},
+  { name: "Russia", season: "2010", c: "#0039A6", alt: "#D52B1E", players: [
+    { n: 47, name: "A. Kirilenko", pos: "SF", rt: 89, trait: "elCapitan" }, { n: 15, name: "V. Khryapa", pos: "PF", rt: 82 },
+    { n: 11, name: "Timofey Mozgov", pos: "C", rt: 80 }, { n: 4, name: "A. Bykov", pos: "PG", rt: 78 },
+    { n: 8, name: "V. Fridzon", pos: "SG", rt: 79 }, { n: 10, name: "S. Monia", pos: "SF", rt: 76 },
+  ]},
+  { name: "Latvia", season: "2023", c: "#9E3039", alt: "#FFFFFF", players: [
+    { n: 6, name: "K. Porziņģis", pos: "C", rt: 90, trait: "unicorn" }, { n: 42, name: "Dāvis Bertāns", pos: "SF", rt: 81 },
+    { n: 8, name: "Dairis Bertāns", pos: "SG", rt: 78 }, { n: 13, name: "A. Žagars", pos: "PG", rt: 79 },
+    { n: 24, name: "A. Gražulis", pos: "PF", rt: 78 }, { n: 0, name: "R. Kurucs", pos: "SF", rt: 76 },
+  ]},
+  { name: "Czechia", season: "2019", c: "#11457E", alt: "#D7141A", players: [
+    { n: 8, name: "T. Satoranský", pos: "PG", rt: 84 }, { n: 24, name: "Jan Veselý", pos: "C", rt: 83 },
+    { n: 11, name: "Blake Schilb", pos: "SF", rt: 79 }, { n: 17, name: "J. Welsch", pos: "SG", rt: 76 },
+    { n: 12, name: "O. Balvín", pos: "PF", rt: 77 }, { n: 7, name: "Vít Krejčí", pos: "SG", rt: 75 },
+  ]},
+  { name: "Nigeria", season: "2023", c: "#008751", alt: "#FFFFFF", players: [
+    { n: 7, name: "Gabe Vincent", pos: "PG", rt: 82 }, { n: 20, name: "Josh Okogie", pos: "SF", rt: 81 },
+    { n: 13, name: "Jordan Nwora", pos: "PF", rt: 80 }, { n: 5, name: "C. Moneke", pos: "PF", rt: 78 },
+    { n: 9, name: "C. Metu", pos: "C", rt: 78 }, { n: 11, name: "K. Okpala", pos: "SG", rt: 76 },
+  ]},
+  { name: "Angola", season: "2006", c: "#C8102E", alt: "#000000", players: [
+    { n: 10, name: "O. Cipriano", pos: "SF", rt: 80 }, { n: 5, name: "Carlos Almeida", pos: "PG", rt: 78 },
+    { n: 8, name: "E. Mingas", pos: "PF", rt: 79 }, { n: 14, name: "J. Costa", pos: "C", rt: 76 },
+    { n: 9, name: "A. Morais", pos: "SG", rt: 75 }, { n: 12, name: "V. Muzemba", pos: "PF", rt: 74 },
+  ]},
+  { name: "Japan", season: "2023", c: "#BC002D", players: [
+    { n: 8, name: "Rui Hachimura", pos: "PF", rt: 86, trait: "secondHalfBeast" }, { n: 5, name: "Yuta Watanabe", pos: "SF", rt: 80 },
+    { n: 2, name: "Yuki Kawamura", pos: "PG", rt: 80 }, { n: 24, name: "J. Hawkinson", pos: "C", rt: 79 },
+    { n: 12, name: "Y. Togashi", pos: "SG", rt: 76 }, { n: 18, name: "K. Tominaga", pos: "SG", rt: 75 },
+  ]},
+  { name: "New Zealand", season: "2002", c: "#111111", alt: "#5B9BD5", players: [
+    { n: 13, name: "Pero Cameron", pos: "PF", rt: 82 }, { n: 5, name: "Phill Jones", pos: "SG", rt: 79 },
+    { n: 7, name: "Sean Marks", pos: "C", rt: 78 }, { n: 10, name: "Kirk Penney", pos: "SF", rt: 78 },
+    { n: 4, name: "P. Henare", pos: "PG", rt: 75 }, { n: 8, name: "D. Boucher", pos: "PF", rt: 74 },
+  ]},
 ];
 
 /* 1992 Olympic "Dream Team" — scraped from Wikipedia roster; bonus opponent only */
