@@ -174,17 +174,17 @@ const TEAMS = [
     { n: 10, name: "Ömer Onan", pos: "SG", rt: 78 }, { n: 12, name: "Semih Erden", pos: "PF", rt: 77 },
   ]},
   { name: "Russia", season: "2010", c: "#0039A6", alt: "#D52B1E", players: [
-    { n: 47, name: "A. Kirilenko", pos: "SF", rt: 89, trait: "elCapitan" }, { n: 15, name: "V. Khryapa", pos: "PF", rt: 82 },
+    { n: 47, name: "A. Kirilenko", pos: "SF", rt: 89, trait: "ak47" }, { n: 15, name: "V. Khryapa", pos: "PF", rt: 82 },
     { n: 11, name: "Timofey Mozgov", pos: "C", rt: 80 }, { n: 4, name: "A. Bykov", pos: "PG", rt: 78 },
     { n: 8, name: "V. Fridzon", pos: "SG", rt: 79 }, { n: 10, name: "S. Monia", pos: "SF", rt: 76 },
   ]},
   { name: "Latvia", season: "2023", c: "#9E3039", alt: "#FFFFFF", players: [
-    { n: 6, name: "K. Porziņģis", pos: "C", rt: 90, trait: "unicorn" }, { n: 42, name: "Dāvis Bertāns", pos: "SF", rt: 81 },
+    { n: 6, name: "K. Porziņģis", pos: "C", rt: 90, trait: "theTower" }, { n: 42, name: "Dāvis Bertāns", pos: "SF", rt: 81 },
     { n: 8, name: "Dairis Bertāns", pos: "SG", rt: 78 }, { n: 13, name: "A. Žagars", pos: "PG", rt: 79 },
     { n: 24, name: "A. Gražulis", pos: "PF", rt: 78 }, { n: 0, name: "R. Kurucs", pos: "SF", rt: 76 },
   ]},
   { name: "Czechia", season: "2019", c: "#11457E", alt: "#D7141A", players: [
-    { n: 8, name: "T. Satoranský", pos: "PG", rt: 84 }, { n: 24, name: "Jan Veselý", pos: "C", rt: 83 },
+    { n: 8, name: "T. Satoranský", pos: "PG", rt: 84, trait: "connector" }, { n: 24, name: "Jan Veselý", pos: "C", rt: 83 },
     { n: 11, name: "Blake Schilb", pos: "SF", rt: 79 }, { n: 17, name: "J. Welsch", pos: "SG", rt: 76 },
     { n: 12, name: "O. Balvín", pos: "PF", rt: 77 }, { n: 7, name: "Vít Krejčí", pos: "SG", rt: 75 },
   ]},
@@ -199,7 +199,7 @@ const TEAMS = [
     { n: 9, name: "A. Morais", pos: "SG", rt: 75 }, { n: 12, name: "V. Muzemba", pos: "PF", rt: 74 },
   ]},
   { name: "Japan", season: "2023", c: "#BC002D", players: [
-    { n: 8, name: "Rui Hachimura", pos: "PF", rt: 86, trait: "secondHalfBeast" }, { n: 5, name: "Yuta Watanabe", pos: "SF", rt: 80 },
+    { n: 8, name: "Rui Hachimura", pos: "PF", rt: 86, trait: "risingSun" }, { n: 5, name: "Yuta Watanabe", pos: "SF", rt: 80 },
     { n: 2, name: "Yuki Kawamura", pos: "PG", rt: 80 }, { n: 24, name: "J. Hawkinson", pos: "C", rt: 79 },
     { n: 12, name: "Y. Togashi", pos: "SG", rt: 76 }, { n: 18, name: "K. Tominaga", pos: "SG", rt: 75 },
   ]},
@@ -512,6 +512,38 @@ const TRAIT_DEFS = {
       "From the opening tip, {player} owned the rim — a Great Wall nobody could breach.",
     ],
   },
+  ak47: {
+    label: "AK-47", pos: true, chance: 0.15,
+    desc: "Two-way lockdown midgame",
+    recapPos: [
+      "{player} did the AK-47 thing — blocks, help D, and quiet points that put {oppN} in a vice.",
+      "Two-way hell: {player} erased the first half for {oppN} while still finding buckets himself.",
+    ],
+  },
+  connector: {
+    label: "THE CONNECTOR", pos: true, chance: 0.14,
+    desc: "Glue-guy facilitation all game",
+    recapPos: [
+      "{player} never forced it — just connected every quarter and made the five look smarter.",
+      "The Connector effect: {player} kept the offense humming from tip to horn.",
+    ],
+  },
+  risingSun: {
+    label: "RISING SUN", pos: true, chance: 0.14,
+    desc: "Quiet midrange takeover in Q3",
+    recapPos: [
+      "{player} rose in the third with that quiet midrange — {oppN} had no answer.",
+      "One silent storm in Q3: {player} kept rising until the lead flipped.",
+    ],
+  },
+  theTower: {
+    label: "THE TOWER", pos: true, chance: 0.16,
+    desc: "Stretch-five punch early and late",
+    recapPos: [
+      "{player} was The Tower — paint early, stretch threes later, impossible size for {oppN}.",
+      "From the rim to the arc, {player} owned the vertical game and cracked the defense open.",
+    ],
+  },
   glassKnee: {
     label: "GLASS KNEE", pos: false, chance: 0.12,
     desc: "Midgame breakdown from knee issues",
@@ -549,6 +581,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
   };
 
   let qs = [...myQ];
+  let ops = [...opQ];
   const players = lineup.filter(Boolean);
 
   for (const p of players) {
@@ -581,7 +614,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
       qs = patchQ(qs, [{ q: 0, d: 2 }, { q: 1, d: 2 }, { q: 2, d: 2 }, { q: 3, d: 1 }]);
       add(p, id, 0, 7, "Full-game dominance vs weaker foe");
     }
-    if (id === "secondHalfBeast" && qs[0] + qs[1] < opQ[0] + opQ[1] && rollTrait(def.chance)) {
+    if (id === "secondHalfBeast" && qs[0] + qs[1] < ops[0] + ops[1] && rollTrait(def.chance)) {
       qs = patchQ(qs, [{ q: 2, d: 3 }, { q: 3, d: 3 }]);
       add(p, id, 2, 6, "Second-half rally");
     }
@@ -609,6 +642,23 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
       qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 1, d: 3 }]);
       add(p, id, 0, 6, "Great Wall Q1–Q2");
     }
+    if (id === "ak47" && rollTrait(def.chance)) {
+      qs = patchQ(qs, [{ q: 1, d: 3 }]);
+      ops = patchQ(ops, [{ q: 0, d: -2 }, { q: 1, d: -2 }]);
+      add(p, id, 1, 7, "AK-47 two-way Q1–Q2");
+    }
+    if (id === "connector" && rollTrait(def.chance)) {
+      qs = patchQ(qs, [{ q: 0, d: 1 }, { q: 1, d: 1 }, { q: 2, d: 1 }, { q: 3, d: 1 }]);
+      add(p, id, 0, 4, "Connector glue all four");
+    }
+    if (id === "risingSun" && rollTrait(def.chance)) {
+      qs = patchQ(qs, [{ q: 2, d: 6 }]);
+      add(p, id, 2, 6, "Rising Sun Q3");
+    }
+    if (id === "theTower" && rollTrait(def.chance)) {
+      qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 2, d: 3 }]);
+      add(p, id, 0, 6, "The Tower Q1 + Q3");
+    }
     if (id === "glassKnee" && rollTrait(def.chance)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -3 }]);
       add(p, id, 1, -6, "Glass knee Q2–Q3");
@@ -623,7 +673,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
     }
     if (id === "elCapitan") {
       const through3 = myQ[0] + myQ[1] + myQ[2];
-      const opThrough3 = opQ[0] + opQ[1] + opQ[2];
+      const opThrough3 = ops[0] + ops[1] + ops[2];
       if (Math.abs(through3 - opThrough3) <= 6 && rollTrait(def.chance)) {
         qs = patchQ(qs, [{ q: 3, d: 6 }]);
         add(p, id, 3, 6, "El Capitán Q4");
@@ -633,7 +683,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
 
   // conditional traits (need score state)
   let my = qSum(qs);
-  const op = qSum(opQ);
+  let op = qSum(ops);
 
   for (const p of players) {
     if (p.trait === "hackAShaq" && my > op && rollTrait(TRAIT_DEFS.hackAShaq.chance)) {
@@ -644,6 +694,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
   }
 
   my = qSum(qs);
+  op = qSum(ops);
   if (my < op && op - my <= 5) {
     for (const p of players) {
       if (p.trait === "heroBall" && rollTrait(TRAIT_DEFS.heroBall.chance)) {
@@ -654,15 +705,15 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
     }
   }
 
-  return { myQ: qs, my, fired };
+  return { myQ: qs, opQ: ops, my, fired };
 }
 
 function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed) {
   const base = simGame(myRt, style, opp, gi);
   const ctx = { gi, style, myRt, oppRt: teamRating(opp), gamesPlayed };
-  const { myQ, my, fired } = applyLineupTraits(lineup, base.myQ, base.opQ, ctx);
+  const { myQ, opQ, my, fired } = applyLineupTraits(lineup, base.myQ, base.opQ, ctx);
   let finalMy = my;
-  let finalOp = qSum(base.opQ);
+  let finalOp = qSum(opQ);
   const regMy = finalMy;
   const regOp = finalOp;
   let otMy = [];
@@ -676,7 +727,7 @@ function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed) {
     otOp = ot.otOp;
     otPeriods = ot.otPeriods;
   }
-  return { ...base, my: finalMy, op: finalOp, myQ, regMy, regOp, otMy, otOp, otPeriods, traitFired: fired };
+  return { ...base, my: finalMy, op: finalOp, myQ, opQ, regMy, regOp, otMy, otOp, otPeriods, traitFired: fired };
 }
 
 function boxScore(lineup, total) {
@@ -1116,8 +1167,7 @@ export default function PerfectSweep() {
   const [groupOut, setGroupOut] = useState(shareInit?.groupOut ?? false);
   const [r2, setR2] = useState(null); // second round: carried result + rival fixtures
   const [r2Out, setR2Out] = useState(shareInit?.r2Out ?? false);
-  const [nationSwapUsed, setNationSwapUsed] = useState(false);
-  const [yearSwapUsed, setYearSwapUsed] = useState(false);
+  const [swapsLeft, setSwapsLeft] = useState(2); // shared pool — spend on nation or year
   const [speed, setSpeed] = useState("medium"); // fast | medium | slow
   const [live, setLive] = useState(null);
   const [pickedThisRoll, setPickedThisRoll] = useState(false);
@@ -1138,16 +1188,16 @@ export default function PerfectSweep() {
   const yearPool = cur ? TEAMS.filter((t) => t.name === cur.name && !seenYears.includes(t.season)) : [];
 
   const switchNation = () => {
-    if (!cur || nationSwapUsed || !nationPool.length) return;
+    if (!cur || swapsLeft <= 0 || !nationPool.length) return;
     const t = shuffle(nationPool)[0];
-    setDeck([t]); setNationSwapUsed(true); setPickedThisRoll(false);
+    setDeck([t]); setSwapsLeft((n) => n - 1); setPickedThisRoll(false);
     setSeenNations((s) => [...s, t.name]);
   };
 
   const switchYear = () => {
-    if (!cur || yearSwapUsed || !yearPool.length) return;
+    if (!cur || swapsLeft <= 0 || !yearPool.length) return;
     const t = shuffle(yearPool)[0];
-    setDeck([t]); setYearSwapUsed(true); setPickedThisRoll(false);
+    setDeck([t]); setSwapsLeft((n) => n - 1); setPickedThisRoll(false);
     setSeenYears((s) => [...s, t.season]);
   };
 
@@ -1158,8 +1208,10 @@ export default function PerfectSweep() {
 
   // anyone on the rolled squad we could still legally sign?
   const hasEligible = cur ? cur.players.some((p) => !lineup[p.pos] && !alreadySigned(p)) : false;
-  // ROLL AGAIN is locked until you sign from the current squad — unless it offers nobody signable, or the five is done
-  const canRoll = !deck.length || pickedThisRoll || !hasEligible || filled === 5;
+  // ROLL AGAIN locked until you sign from the current squad (unless nobody signable).
+  // Once the starting five is full, rolling is disabled — tip off instead.
+  const fiveSet = filled === 5;
+  const canRoll = !fiveSet && (!deck.length || pickedThisRoll || !hasEligible);
 
   const roll = () => {
     if (!canRoll) return;
@@ -1184,7 +1236,12 @@ export default function PerfectSweep() {
 
   const startTournament = () => {
     // real FIBA system: group of 4 → 2nd round group (carry-over + 2 new games) → QF, SF, Final = 8 games
-    const g8 = shuffle(TEAMS).slice(0, 8); // 0-2 group rivals · 3-4 second-round opponents · 5-7 knockouts
+    // knockouts (slots 5-7) draw from above-average teams only, sorted so the Final tends to be the toughest
+    const avgRt = TEAMS.reduce((s, t) => s + teamRating(t), 0) / TEAMS.length;
+    const elite = TEAMS.filter((t) => teamRating(t) >= avgRt);
+    const knockouts = shuffle(elite).slice(0, 3).sort((a, b) => teamRating(a) - teamRating(b));
+    const rest = shuffle(TEAMS.filter((t) => !knockouts.includes(t))).slice(0, 5);
+    const g8 = [...rest, ...knockouts]; // 0-2 group rivals · 3-4 second-round opponents · 5-7 knockouts
     setGauntlet(g8);
     const rivals = g8.slice(0, 3);
     const pairs = [[0, 1], [0, 2], [1, 2]].map(([a, b]) => {
@@ -1380,7 +1437,7 @@ export default function PerfectSweep() {
 
   const reset = () => {
     runId.current++; setLive(null); setLinkCopied(false); setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
-    setNationSwapUsed(false); setYearSwapUsed(false); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false);
+    setSwapsLeft(2); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false);
     setPickedThisRoll(false); setSeenNations([]); setSeenYears([]); setOpenFlow({});
     setDreamTeamMode(false); setDreamGamePlayed(false);
     window.history.replaceState(null, "", window.location.pathname);
@@ -1524,29 +1581,36 @@ export default function PerfectSweep() {
           {/* roll controls */}
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="eyebrow">
-              {canRoll
-                ? `ROLLED SQUAD — PICK WHO WAS ACTUALLY THERE · ROLL #${rolls}`
-                : `SIGN ONE PLAYER FROM THIS SQUAD TO UNLOCK THE NEXT ROLL · ROLL #${rolls}`}
+              {fiveSet
+                ? `STARTING FIVE SET — TIP OFF WHEN READY · ROLL #${rolls}`
+                : canRoll
+                  ? `ROLLED SQUAD — PICK WHO WAS ACTUALLY THERE · ROLL #${rolls}`
+                  : `SIGN ONE PLAYER FROM THIS SQUAD TO UNLOCK THE NEXT ROLL · ROLL #${rolls}`}
             </div>
-            <div className="flex gap-2">
-              <button onClick={switchNation} disabled={nationSwapUsed || !nationPool.length}
-                title={nationSwapUsed ? "Nation switch already used this run"
+            <div className="flex gap-2 items-center">
+              <span className="eyebrow" title="Spend on nation or year, in any combination">
+                SWAPS <b style={{ color: swapsLeft ? "#E8465A" : "#5f6b7d" }}>{swapsLeft}×</b>
+              </span>
+              <button onClick={switchNation} disabled={!swapsLeft || !nationPool.length || fiveSet}
+                title={fiveSet ? "Starting five is set"
+                  : !swapsLeft ? "No swaps left this run"
                   : !nationPool.length ? `No other nation at World Cup ${cur?.season}`
-                  : `Different nation, same year (${cur?.season}) — once per run`}
-                className={`skew chip dsp px-3 py-1.5 text-sm ${(nationSwapUsed || !nationPool.length) ? "btnDead" : "btnG"}`}
-                style={nationSwapUsed ? { textDecoration: "line-through" } : {}}>
-                <span className="unskew">⇄ NATION <b style={{ color: "#E8465A" }}>1×</b></span>
+                  : `Different nation, same year (${cur?.season}) — uses one swap`}
+                className={`skew chip dsp px-3 py-1.5 text-sm ${(!swapsLeft || !nationPool.length || fiveSet) ? "btnDead" : "btnG"}`}>
+                <span className="unskew">⇄ NATION</span>
               </button>
-              <button onClick={switchYear} disabled={yearSwapUsed || !yearPool.length}
-                title={yearSwapUsed ? "Year switch already used this run"
+              <button onClick={switchYear} disabled={!swapsLeft || !yearPool.length || fiveSet}
+                title={fiveSet ? "Starting five is set"
+                  : !swapsLeft ? "No swaps left this run"
                   : !yearPool.length ? `${cur?.name} has only one squad in the deck`
-                  : `Same nation (${cur?.name}), different World Cup — once per run`}
-                className={`skew chip dsp px-3 py-1.5 text-sm ${(yearSwapUsed || !yearPool.length) ? "btnDead" : "btnG"}`}
-                style={yearSwapUsed ? { textDecoration: "line-through" } : {}}>
-                <span className="unskew">⟳ YEAR <b style={{ color: "#E8465A" }}>1×</b></span>
+                  : `Same nation (${cur?.name}), different World Cup — uses one swap`}
+                className={`skew chip dsp px-3 py-1.5 text-sm ${(!swapsLeft || !yearPool.length || fiveSet) ? "btnDead" : "btnG"}`}>
+                <span className="unskew">⟳ YEAR</span>
               </button>
               <button onClick={roll} disabled={!canRoll}
-                title={canRoll ? "Roll a new squad" : "Sign a player from this squad first — or use a 1× switch"}
+                title={fiveSet ? "Starting five is set — play the World Cup"
+                  : canRoll ? "Roll a new squad"
+                  : "Sign a player from this squad first — or spend a swap"}
                 className={`skew chip dsp9 px-5 py-1.5 ${canRoll ? "btnP" : "btnDead"}`}>
                 <span className="unskew">🏀 ROLL AGAIN</span>
               </button>
@@ -1571,7 +1635,9 @@ export default function PerfectSweep() {
                     <div className="absolute inset-0 z-10 flex items-center justify-center"
                       style={{ background: "rgba(10,12,18,.72)", backdropFilter: "blur(1px)" }}>
                       <div className="skew chip dsp9 px-5 py-2 text-sm" style={{ background: "#E8465A", color: "#fff" }}>
-                        <span className="unskew">PLAYER SIGNED — ROLL FOR THE NEXT SQUAD<BtnArrow /></span>
+                        <span className="unskew">
+                          {fiveSet ? <>STARTING FIVE SET — PLAY THE WORLD CUP<BtnArrow /></> : <>PLAYER SIGNED — ROLL FOR THE NEXT SQUAD<BtnArrow /></>}
+                        </span>
                       </div>
                     </div>
                   )}
