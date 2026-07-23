@@ -927,6 +927,7 @@ function flowYDomain(flow) {
 
 const GameFlow = ({ flow, opp, traits = [] }) => {
   const [hover, setHover] = useState(null);
+  const wrapRef = useRef(null);
   const oc = oppColor(opp);
   const myC = "#E8465A";
   const oppN = `${opp.name} '${opp.season.slice(2)}`;
@@ -949,8 +950,19 @@ const GameFlow = ({ flow, opp, traits = [] }) => {
     const copy = traitMarkerCopy(t, oppN);
     return { ...t, cx: x(sec), cy: y(m), copy };
   });
+  const tipPos = (() => {
+    if (!hover) return null;
+    const wrapW = wrapRef.current?.clientWidth || W;
+    const anchorX = (hover.cx / W) * wrapW;
+    const tipHalf = 112;
+    const pad = 8;
+    let shift = 0;
+    if (anchorX - tipHalf < pad) shift = tipHalf + pad - anchorX;
+    else if (anchorX + tipHalf > wrapW - pad) shift = wrapW - pad - tipHalf - anchorX;
+    return { left: anchorX, top: `${(hover.cy / H) * 100}%`, shift, below: hover.cy < H * 0.38 };
+  })();
   return (
-    <div className="scoreDev">
+    <div className="scoreDev" ref={wrapRef}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
         {Array.from({ length: periods }, (_, q) => {
           const x0 = x(q * 600), x1 = x(Math.min(maxSec, (q + 1) * 600));
@@ -1000,9 +1012,9 @@ const GameFlow = ({ flow, opp, traits = [] }) => {
           );
         })}
       </svg>
-      {hover && (
-        <div className={`traitTip ${hover.cy < H * 0.38 ? "traitTipBelow" : ""}`} role="tooltip"
-          style={{ left: `${Math.min(78, Math.max(22, (hover.cx / W) * 100))}%`, top: `${(hover.cy / H) * 100}%` }}>
+      {hover && tipPos && (
+        <div className={`traitTip ${tipPos.below ? "traitTipBelow" : ""}`} role="tooltip"
+          style={{ left: tipPos.left, top: tipPos.top, ["--tip-shift"]: `${tipPos.shift}px` }}>
           <div className="traitTipLabel" style={{ color: hover.pos ? "#7ee2a8" : "#f08a8a" }}>{hover.copy.title}</div>
           <div className="traitTipSub">{hover.copy.sub}</div>
           <div className="traitTipBody">{hover.copy.body}</div>
@@ -1127,12 +1139,12 @@ const css = `
   border:5px solid transparent;border-top-color:#303c56;}
 .segCtrl button:hover .segTip,.segCtrl button:focus-visible .segTip{opacity:1;visibility:visible;}
 .scoreDev{position:relative;overflow:visible;}
-.traitTip{position:absolute;transform:translate(-50%,calc(-100% - 12px));width:max-content;max-width:220px;
+.traitTip{position:absolute;transform:translate(calc(-50% + var(--tip-shift, 0px)),calc(-100% - 12px));width:max-content;max-width:220px;
   padding:.55rem .7rem;pointer-events:none;z-index:6;
   background:#0f1420;border:1px solid #303c56;box-shadow:0 8px 22px rgba(0,0,0,.5);}
-.traitTip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
+.traitTip::after{content:"";position:absolute;left:calc(50% - var(--tip-shift, 0px));top:100%;transform:translateX(-50%);
   border:5px solid transparent;border-top-color:#303c56;}
-.traitTip.traitTipBelow{transform:translate(-50%,14px);}
+.traitTip.traitTipBelow{transform:translate(calc(-50% + var(--tip-shift, 0px)),14px);}
 .traitTip.traitTipBelow::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:#303c56;}
 .traitTipLabel{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
   font-size:12px;letter-spacing:.04em;text-transform:uppercase;line-height:1.2;}
@@ -1366,14 +1378,14 @@ export default function PerfectSweep() {
   const yearPool = cur ? TEAMS.filter((t) => t.name === cur.name && !seenYears.includes(t.season)) : [];
 
   const switchNation = () => {
-    if (!cur || swapsLeft <= 0 || !nationPool.length) return;
+    if (!cur || swapsLeft <= 0 || !nationPool.length || pickedThisRoll || fiveSet) return;
     const t = shuffle(nationPool)[0];
     setDeck([t]); setSwapsLeft((n) => n - 1); setPickedThisRoll(false);
     setSeenNations((s) => [...s, t.name]);
   };
 
   const switchYear = () => {
-    if (!cur || swapsLeft <= 0 || !yearPool.length) return;
+    if (!cur || swapsLeft <= 0 || !yearPool.length || pickedThisRoll || fiveSet) return;
     const t = shuffle(yearPool)[0];
     setDeck([t]); setSwapsLeft((n) => n - 1); setPickedThisRoll(false);
     setSeenYears((s) => [...s, t.season]);
@@ -1767,23 +1779,25 @@ export default function PerfectSweep() {
                   {" "}Swap{" "}
                   <b style={{ color: swapsLeft ? "#E8465A" : "#5f6b7d" }}>{swapsLeft}×</b>
                 </span>
-                <button onClick={switchNation} disabled={!swapsLeft || !nationPool.length || fiveSet}
+                <button onClick={switchNation} disabled={!swapsLeft || !nationPool.length || fiveSet || pickedThisRoll}
                   title={fiveSet ? "Starting five is set"
+                    : pickedThisRoll ? "Already signed this roll — roll for the next squad"
                     : !swapsLeft ? "No swaps left this run"
                     : !nationPool.length ? `No other nation at World Cup ${cur?.season}`
                     : `Different nation, same year (${cur?.season}) — uses one swap`}
-                  className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !nationPool.length || fiveSet) ? "btnDead" : "btnG"}`}>
+                  className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !nationPool.length || fiveSet || pickedThisRoll) ? "btnDead" : "btnG"}`}>
                   <span className="unskew inline-flex items-center justify-center gap-1 w-full">
                     <span className="text-lg leading-none" aria-hidden="true">⟳</span>
                     <span>NATION</span>
                   </span>
                 </button>
-                <button onClick={switchYear} disabled={!swapsLeft || !yearPool.length || fiveSet}
+                <button onClick={switchYear} disabled={!swapsLeft || !yearPool.length || fiveSet || pickedThisRoll}
                   title={fiveSet ? "Starting five is set"
+                    : pickedThisRoll ? "Already signed this roll — roll for the next squad"
                     : !swapsLeft ? "No swaps left this run"
                     : !yearPool.length ? `${cur?.name} has only one squad in the deck`
                     : `Same nation (${cur?.name}), different World Cup — uses one swap`}
-                  className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !yearPool.length || fiveSet) ? "btnDead" : "btnG"}`}>
+                  className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !yearPool.length || fiveSet || pickedThisRoll) ? "btnDead" : "btnG"}`}>
                   <span className="unskew inline-flex items-center justify-center gap-3.5 w-full">
                     <span className="text-lg leading-none" aria-hidden="true">⟳</span>
                     <span>YEAR</span>
@@ -1824,9 +1838,9 @@ export default function PerfectSweep() {
                   {pickedThisRoll && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center"
                       style={{ background: "rgba(10,12,18,.72)", backdropFilter: "blur(1px)" }}>
-                      <div className="skew chip dsp9 px-5 py-2 text-sm" style={{ background: "#E8465A", color: "#fff" }}>
+                      <div className="skew chip dsp9 px-5 py-2 text-sm" style={{ background: "linear-gradient(160deg,#c7ddff,#60a5fa 55%,#2563eb)", color: "#0a1e45" }}>
                         <span className="unskew">
-                          {fiveSet ? <>STARTING FIVE SET — PLAY THE WORLD CUP<BtnArrow /></> : <>PLAYER SIGNED — ROLL FOR THE NEXT SQUAD<BtnArrow /></>}
+                          {fiveSet ? "STARTING FIVE SET — PLAY THE WORLD CUP" : "PLAYER SIGNED — ROLL AGAIN FOR THE NEXT SQUAD"}
                         </span>
                       </div>
                     </div>
