@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hall of Fame form preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:ital,wght@0,500;0,700;0,800;1,700;1,800;1,900&family=Saira:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .ps-root{font-family:'Saira',sans-serif;color:#EAF0F7;min-height:100vh;position:relative;
+      background:
+        radial-gradient(1000px 420px at 50% -120px, rgba(232,70,90,.18), transparent 60%),
+        radial-gradient(800px 500px at 90% 110%, rgba(35,180,226,.10), transparent 60%),
+        linear-gradient(180deg,#0b0e15 0%, #0a0c12 100%);}
+    .ps-root::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
+      background:repeating-linear-gradient(115deg, rgba(255,255,255,.016) 0 2px, transparent 2px 90px);}
+    .dsp{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
+      text-transform:uppercase;letter-spacing:.02em;}
+    .dsp9{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
+      text-transform:uppercase;letter-spacing:.01em;}
+    .eyebrow{font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+      letter-spacing:.28em;font-size:11px;color:#5f6b7d;}
+    .panel{background:linear-gradient(180deg,#141926 0%,#10141f 100%);
+      border:1px solid #232b3d;border-top:2px solid #2c3650;
+      clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);}
+    .chip{clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);}
+    .skew{transform:skewX(-8deg);}
+    .unskew{transform:skewX(8deg);display:inline-block;}
+    .btnP{background:linear-gradient(180deg,#ff5468,#e8465a 55%,#c92840);color:#fff;
+      border:0;box-shadow:0 0 24px rgba(232,70,90,.4), inset 0 1px 0 rgba(255,255,255,.35);
+      cursor:pointer;width:100%;padding:.75rem 1.5rem;font-size:1.125rem;}
+    .btnG{background:#1a2132;color:#c6d2e3;border:1px solid #303c56;cursor:pointer;width:100%;padding:.65rem 1.5rem;}
+    .overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+      padding:0 1rem;background:rgba(6,8,14,.72);backdrop-filter:blur(4px);}
+    .modal{padding:1.25rem;width:100%;max-width:28rem;background:#121826;}
+    .score-box{margin-bottom:1rem;padding:.75rem 1rem;text-align:center;background:#0e1219;}
+    label{display:block;margin-bottom:.75rem;}
+    label .eyebrow{display:block;margin-bottom:.375rem;color:#7d8ba0;}
+    input{width:100%;padding:.625rem .75rem;font-size:.875rem;font-family:inherit;
+      background:#0e1219;border:1px solid #2f3d5c;color:#EAF0F7;outline:none;border-radius:0;}
+    .combo{position:relative;}
+    .combo-list{position:absolute;left:0;right:0;z-index:50;margin-top:.25rem;max-height:12rem;
+      overflow-y:auto;background:#0e1219;border:1px solid #2f3d5c;box-shadow:0 12px 28px rgba(0,0,0,.45);
+      list-style:none;margin:0;padding:0;display:none;}
+    .combo-list.open{display:block;}
+    .combo-list li{padding:.5rem .75rem;font-size:.875rem;cursor:pointer;color:#EAF0F7;}
+    .combo-list li:hover,.combo-list li.active{background:#1a2438;}
+    .combo-list li.selected{color:#7ee2a8;}
+    .combo-list li.empty{color:#7d8ba0;cursor:default;}
+    .actions{display:flex;flex-direction:column;gap:.5rem;}
+    .topbar{display:flex;align-items:center;justify-content:center;padding:.75rem 1.25rem;position:relative;
+      background:linear-gradient(180deg,#131826,#0e1219);border-bottom:1px solid #232b3d;}
+    .badge{background:#E8465A;color:#fff;padding:.25rem .75rem;font-size:1.125rem;}
+  </style>
+</head>
+<body>
+  <div class="ps-root">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:.75rem;">
+        <div class="skew chip badge dsp9"><span class="unskew">8–0</span></div>
+        <div class="dsp" style="font-size:1.125rem;color:#EAF0F7;">PERFECT SWEEP</div>
+      </div>
+    </div>
+    <div style="height:3px;background:linear-gradient(90deg,#E8465A 0%,#E8465A 30%,#23b4e2 30%,#23b4e2 33%,transparent 33%)"></div>
+    <div style="padding:3rem 1.5rem;text-align:center;opacity:.35;">
+      <div class="dsp9" style="font-size:4rem;color:#E8465A;">DONE</div>
+      <p style="color:#93a1b5;">You beat the Dream Team. There is nothing left to prove.</p>
+    </div>
+
+    <div class="overlay" role="dialog" aria-modal="true">
+      <div class="panel modal">
+        <div class="eyebrow" style="color:#E8465A;margin-bottom:.25rem;">HALL OF FAME</div>
+        <h2 class="dsp" style="font-size:1.5rem;margin:0 0 .25rem;color:#EAF0F7;">Enter the Hall of Fame</h2>
+        <p style="font-size:.875rem;margin:0 0 1rem;color:#93a1b5;">
+          Perfect Sweep + Dream Team conquerors only. Score is the sum of your margins.
+        </p>
+        <div class="panel score-box">
+          <div class="eyebrow" style="color:#7d8ba0;">YOUR SCORE</div>
+          <div class="dsp9" style="font-size:2.25rem;color:#7ee2a8;">147</div>
+        </div>
+        <label>
+          <span class="eyebrow">NICKNAME</span>
+          <input type="text" placeholder="2–16 characters" value="CourtVision" maxlength="16" />
+        </label>
+        <label style="margin-bottom:1rem;">
+          <span class="eyebrow">COUNTRY</span>
+          <div class="combo" id="country-combo">
+            <input
+              id="country-input"
+              type="text"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="country-listbox"
+              aria-autocomplete="list"
+              autocomplete="off"
+              placeholder="Type a country…"
+              value="🇺🇸 United States"
+            />
+            <ul id="country-listbox" class="combo-list" role="listbox"></ul>
+          </div>
+        </label>
+        <div class="actions">
+          <button type="button" class="btnP skew dsp9"><span class="unskew">SUBMIT</span></button>
+          <button type="button" class="skew chip dsp btnG"><span class="unskew">SKIP</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module">
+    import { COUNTRIES, countryMatchesQuery } from "./countries.js";
+
+    const input = document.getElementById("country-input");
+    const list = document.getElementById("country-listbox");
+    const root = document.getElementById("country-combo");
+    let selected = COUNTRIES.find((c) => c.code === "US");
+    let open = false;
+    let query = "";
+    let highlight = 0;
+
+    function filtered() {
+      return COUNTRIES.filter((c) => countryMatchesQuery(c, query));
+    }
+
+    function renderList() {
+      const items = filtered();
+      list.innerHTML = "";
+      if (!items.length) {
+        list.innerHTML = '<li class="empty">No matches</li>';
+        return;
+      }
+      items.forEach((c, i) => {
+        const li = document.createElement("li");
+        li.role = "option";
+        li.textContent = `${c.flag} ${c.name}`;
+        if (c.code === selected.code) li.classList.add("selected");
+        if (i === highlight) li.classList.add("active");
+        li.addEventListener("mousedown", (e) => e.preventDefault());
+        li.addEventListener("click", () => pick(c));
+        li.addEventListener("mouseenter", () => {
+          highlight = i;
+          renderList();
+        });
+        list.appendChild(li);
+      });
+    }
+
+    function setOpen(next) {
+      open = next;
+      list.classList.toggle("open", open);
+      input.setAttribute("aria-expanded", String(open));
+      if (open) {
+        highlight = 0;
+        renderList();
+      } else {
+        query = "";
+        input.value = `${selected.flag} ${selected.name}`;
+      }
+    }
+
+    function pick(c) {
+      selected = c;
+      setOpen(false);
+    }
+
+    input.addEventListener("focus", () => {
+      query = "";
+      input.value = "";
+      setOpen(true);
+    });
+
+    input.addEventListener("input", () => {
+      query = input.value;
+      highlight = 0;
+      setOpen(true);
+      renderList();
+    });
+
+    input.addEventListener("keydown", (e) => {
+      const items = filtered();
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setOpen(true);
+        highlight = Math.min(highlight + 1, Math.max(items.length - 1, 0));
+        renderList();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        highlight = Math.max(highlight - 1, 0);
+        renderList();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (open && items[highlight]) pick(items[highlight]);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        input.blur();
+      }
+    });
+
+    document.addEventListener("mousedown", (e) => {
+      if (!root.contains(e.target)) setOpen(false);
+    });
+  </script>
+</body>
+</html>

@@ -1,19 +1,21 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { COUNTRIES, countryByCode, countryMatchesQuery } from "./countries.js";
+import { validateNick } from "./nickValidate.js";
 
 /* ============ DATA: legendary FIBA World Cup national squads ============ */
 const TEAMS = [
   { name: "USA", season: "1994", c: "#B31942", alt: "#0A3161", players: [
-    { n: 13, name: "Shaquille O'Neal", pos: "C", rt: 95, trait: "hackAShaq" }, { n: 5, name: "Reggie Miller", pos: "SG", rt: 89 },
+    { n: 13, name: "Shaquille O'Neal", pos: "C", rt: 95, trait: "ak47" }, { n: 5, name: "Reggie Miller", pos: "SG", rt: 89 },
     { n: 6, name: "Shawn Kemp", pos: "PF", rt: 89 }, { n: 7, name: "Kevin Johnson", pos: "PG", rt: 87 },
     { n: 9, name: "D. Wilkins", pos: "SF", rt: 88 }, { n: 11, name: "A. Mourning", pos: "PF", rt: 88 },
   ]},
   { name: "USA", season: "2010", c: "#0A3161", players: [
     { n: 5, name: "Kevin Durant", pos: "SF", rt: 94 }, { n: 6, name: "Derrick Rose", pos: "PG", rt: 88, trait: "glassKnee" },
-    { n: 7, name: "R. Westbrook", pos: "SG", rt: 86 }, { n: 4, name: "C. Billups", pos: "SG", rt: 83 },
+    { n: 7, name: "R. Westbrook", pos: "SG", rt: 86, trait: "brickFactory" }, { n: 4, name: "C. Billups", pos: "SG", rt: 83 },
     { n: 10, name: "A. Iguodala", pos: "SF", rt: 82 }, { n: 15, name: "L. Odom", pos: "PF", rt: 81 }, { n: 11, name: "K. Love", pos: "C", rt: 82 },
   ]},
   { name: "USA", season: "2014", c: "#B31942", alt: "#0A3161", players: [
-    { n: 4, name: "Stephen Curry", pos: "PG", rt: 92, trait: "flameThrower" }, { n: 13, name: "James Harden", pos: "SG", rt: 90, trait: "playoffFade" },
+    { n: 4, name: "Stephen Curry", pos: "PG", rt: 92, trait: "flameThrower", traitChance: 0.12 }, { n: 13, name: "James Harden", pos: "SG", rt: 90, trait: "playoffFade" },
     { n: 10, name: "Kyrie Irving", pos: "SG", rt: 89 }, { n: 14, name: "Anthony Davis", pos: "PF", rt: 88 },
     { n: 11, name: "K. Thompson", pos: "SF", rt: 86 }, { n: 12, name: "D. Cousins", pos: "C", rt: 84, trait: "hotHead" },
   ]},
@@ -73,7 +75,7 @@ const TEAMS = [
     { n: 7, name: "R. Garrett", pos: "SG", rt: 77 }, { n: 12, name: "P. Femerling", pos: "PF", rt: 75 },
   ]},
   { name: "Serbia", season: "2014", c: "#C6363C", alt: "#1F4E9C", players: [
-    { n: 4, name: "Miloš Teodosić", pos: "PG", rt: 88, trait: "goesMissing" }, { n: 7, name: "B. Bogdanović", pos: "SG", rt: 85 },
+    { n: 4, name: "Miloš Teodosić", pos: "PG", rt: 88, trait: "connector" }, { n: 7, name: "B. Bogdanović", pos: "SG", rt: 85 },
     { n: 10, name: "N. Bjelica", pos: "PF", rt: 82 }, { n: 9, name: "S. Marković", pos: "SG", rt: 79 },
     { n: 13, name: "M. Raduljica", pos: "C", rt: 79 }, { n: 8, name: "N. Kalinić", pos: "SF", rt: 79 },
   ]},
@@ -88,7 +90,7 @@ const TEAMS = [
     { n: 15, name: "R. Javtokas", pos: "PF", rt: 78 }, { n: 8, name: "R. Seibutis", pos: "SG", rt: 76 },
   ]},
   { name: "France", season: "2019", c: "#002395", players: [
-    { n: 27, name: "Rudy Gobert", pos: "C", rt: 88, trait: "foulTrouble" }, { n: 10, name: "E. Fournier", pos: "SG", rt: 85 },
+    { n: 27, name: "Rudy Gobert", pos: "C", rt: 88, trait: "greatWall", traitChance: 0.15 }, { n: 10, name: "E. Fournier", pos: "SG", rt: 85 },
     { n: 12, name: "Nando De Colo", pos: "PG", rt: 84 }, { n: 5, name: "Nicolas Batum", pos: "SF", rt: 83 },
     { n: 21, name: "A. Albicy", pos: "SG", rt: 77 }, { n: 15, name: "A. M'Baye", pos: "PF", rt: 76 },
   ]},
@@ -98,7 +100,7 @@ const TEAMS = [
     { n: 15, name: "S. Vranković", pos: "C", rt: 80 }, { n: 5, name: "V. Šretl", pos: "PG", rt: 75 },
   ]},
   { name: "Slovenia", season: "2023", c: "#00A94F", players: [
-    { n: 77, name: "Luka Dončić", pos: "PG", rt: 96, trait: "heroBall" }, { n: 6, name: "A. Tobey", pos: "C", rt: 79 },
+    { n: 77, name: "Luka Dončić", pos: "PG", rt: 96, traits: ["heroBall", "refMeltdown"] }, { n: 6, name: "A. Tobey", pos: "C", rt: 79 },
     { n: 3, name: "K. Prepelič", pos: "SG", rt: 79 }, { n: 31, name: "V. Čančar", pos: "PF", rt: 78 },
     { n: 11, name: "J. Blažič", pos: "SF", rt: 76 }, { n: 30, name: "Z. Dragić", pos: "SG", rt: 75 },
   ]},
@@ -138,7 +140,7 @@ const TEAMS = [
     { n: 13, name: "R. Jokubaitis", pos: "SG", rt: 76 }, { n: 8, name: "J. Mačiulis", pos: "SG", rt: 76 },
   ]},
   { name: "France", season: "2014", c: "#002395", players: [
-    { n: 9, name: "Tony Parker", pos: "PG", rt: 90 }, { n: 8, name: "Boris Diaw", pos: "PF", rt: 83 },
+    { n: 9, name: "Tony Parker", pos: "PG", rt: 90, trait: "elCapitan" }, { n: 8, name: "Boris Diaw", pos: "PF", rt: 83 },
     { n: 5, name: "Nicolas Batum", pos: "SF", rt: 84 }, { n: 27, name: "Rudy Gobert", pos: "C", rt: 82 },
     { n: 12, name: "Nando De Colo", pos: "SG", rt: 83 }, { n: 6, name: "T. Heurtel", pos: "SG", rt: 78 },
   ]},
@@ -230,12 +232,12 @@ const TEAMS = [
     { n: 5, name: "Nuni Omot", pos: "SF", rt: 77 }, { n: 11, name: "JT Thor", pos: "PF", rt: 76 },
   ]},
   { name: "Montenegro", season: "2023", c: "#C40308", alt: "#FFC72C", players: [
-    { n: 9, name: "Nikola Vučević", pos: "C", rt: 88, trait: "connector" }, { n: 11, name: "B. Dubljević", pos: "PF", rt: 81 },
+    { n: 9, name: "Nikola Vučević", pos: "C", rt: 88 }, { n: 11, name: "B. Dubljević", pos: "PF", rt: 81 },
     { n: 4, name: "N. Ivanović", pos: "PG", rt: 79 }, { n: 7, name: "D. Simonović", pos: "SG", rt: 77 },
     { n: 14, name: "M. Popović", pos: "SF", rt: 76 }, { n: 19, name: "M. Radončić", pos: "PF", rt: 75 },
   ]},
   { name: "Iran", season: "2014", c: "#239F40", alt: "#DA0000", players: [
-    { n: 15, name: "Hamed Haddadi", pos: "C", rt: 87, trait: "greatWall" }, { n: 7, name: "S. Nikkhah Bahrami", pos: "SF", rt: 81 },
+    { n: 15, name: "Hamed Haddadi", pos: "C", rt: 87, trait: "greatWall", traitChance: 0.05 }, { n: 7, name: "S. Nikkhah Bahrami", pos: "SF", rt: 81 },
     { n: 5, name: "Mehdi Kamrani", pos: "PG", rt: 79 }, { n: 8, name: "O. Hassanzadeh", pos: "SG", rt: 77 },
     { n: 12, name: "A. Davari", pos: "PF", rt: 76 }, { n: 14, name: "A. Kazemi", pos: "PF", rt: 75 },
   ]},
@@ -245,7 +247,7 @@ const TEAMS = [
     { n: 5, name: "T. Pkhakadze", pos: "PG", rt: 76 }, { n: 9, name: "G. Shermadini", pos: "C", rt: 80 },
   ]},
   { name: "Cape Verde", season: "2023", c: "#003893", alt: "#CF2027", players: [
-    { n: 22, name: "Edy Tavares", pos: "C", rt: 88, trait: "foulTrouble" }, { n: 5, name: "I. Almeida", pos: "PG", rt: 78 },
+    { n: 22, name: "Edy Tavares", pos: "C", rt: 88, trait: "greatWall" }, { n: 5, name: "I. Almeida", pos: "PG", rt: 78 },
     { n: 8, name: "W. Mendes", pos: "SF", rt: 77 }, { n: 11, name: "B. da Rosa", pos: "SG", rt: 76 },
     { n: 14, name: "K. Correia", pos: "PF", rt: 75 }, { n: 7, name: "P. Abreu", pos: "SG", rt: 74 },
   ]},
@@ -292,7 +294,7 @@ const TEAMS = [
   ]},
   /* --- complete 1986–2023 World Cup podiums (gold / silver / bronze) --- */
   { name: "USA", season: "1986", c: "#0A3161", alt: "#B31942", players: [
-    { n: 11, name: "David Robinson", pos: "C", rt: 93, trait: "theTower" }, { n: 7, name: "Kenny Smith", pos: "PG", rt: 86 },
+    { n: 11, name: "David Robinson", pos: "C", rt: 93, trait: "greatWall" }, { n: 7, name: "Kenny Smith", pos: "PG", rt: 86 },
     { n: 15, name: "Charles Smith", pos: "PF", rt: 83 }, { n: 14, name: "Armon Gilliam", pos: "PF", rt: 82 },
     { n: 8, name: "Sean Elliott", pos: "SF", rt: 82 }, { n: 6, name: "Steve Kerr", pos: "SG", rt: 78 },
   ]},
@@ -307,7 +309,7 @@ const TEAMS = [
     { n: 14, name: "V. Goborov", pos: "C", rt: 80 }, { n: 8, name: "V. Berezhnoy", pos: "PF", rt: 77 },
   ]},
   { name: "USA", season: "1990", c: "#B31942", alt: "#0A3161", players: [
-    { n: 15, name: "Alonzo Mourning", pos: "C", rt: 88, trait: "hotHead" }, { n: 9, name: "Kenny Anderson", pos: "PG", rt: 84 },
+    { n: 15, name: "Alonzo Mourning", pos: "C", rt: 88, trait: "hotHead", traitChance: 0.05 }, { n: 9, name: "Kenny Anderson", pos: "PG", rt: 84 },
     { n: 14, name: "Billy Owens", pos: "SF", rt: 83 }, { n: 11, name: "Todd Day", pos: "SG", rt: 80 },
     { n: 12, name: "Chris Gatling", pos: "PF", rt: 79 }, { n: 6, name: "Lee Mayberry", pos: "PG", rt: 77 },
   ]},
@@ -330,112 +332,6 @@ const TEAMS = [
     { n: 4, name: "Wendell Alexis", pos: "SF", rt: 82 }, { n: 11, name: "Trajan Langdon", pos: "SG", rt: 80 },
     { n: 15, name: "Brad Miller", pos: "C", rt: 81 }, { n: 7, name: "Jimmy King", pos: "PG", rt: 77 },
     { n: 9, name: "Gerard King", pos: "PF", rt: 78 }, { n: 12, name: "Jason Sasser", pos: "SF", rt: 76 },
-  ]},
-  /* --- remaining all-time WC nations (one curated squad each; UAR folded into Egypt) --- */
-  { name: "Chile", season: "1959", c: "#D52B1E", alt: "#0039A6", players: [
-    { n: 14, name: "J. Arredondo", pos: "SF", rt: 80 }, { n: 7, name: "R. Etcheverry", pos: "PG", rt: 78 },
-    { n: 11, name: "L. Salvadores", pos: "SG", rt: 77 }, { n: 15, name: "O. Ledesma", pos: "C", rt: 78 },
-    { n: 9, name: "V. Mahana", pos: "PF", rt: 76 }, { n: 5, name: "J. Domínguez", pos: "SG", rt: 74 },
-  ]},
-  { name: "Uruguay", season: "1986", c: "#0038A8", alt: "#FFFFFF", players: [
-    { n: 14, name: "H. Pierri", pos: "SF", rt: 81 }, { n: 7, name: "H. Peinado", pos: "PG", rt: 78 },
-    { n: 10, name: "J. Gamis", pos: "SG", rt: 77 }, { n: 15, name: "A. Larrazábal", pos: "C", rt: 78 },
-    { n: 12, name: "M. Pagura", pos: "PF", rt: 76 }, { n: 5, name: "D. García", pos: "SG", rt: 74 },
-  ]},
-  { name: "Cuba", season: "1974", c: "#002A8F", alt: "#CF142B", players: [
-    { n: 10, name: "R. Rizo", pos: "SF", rt: 82 }, { n: 7, name: "T. Herrera", pos: "PG", rt: 79 },
-    { n: 14, name: "A. Morales", pos: "PF", rt: 80 }, { n: 15, name: "P. Abreu", pos: "C", rt: 79 },
-    { n: 9, name: "J. Pérez", pos: "SG", rt: 77 }, { n: 5, name: "R. Cabrera", pos: "SG", rt: 75 },
-  ]},
-  { name: "Czechoslovakia", season: "1982", c: "#11457E", alt: "#D7141A", players: [
-    { n: 9, name: "Kamil Brabenec", pos: "SF", rt: 86, trait: "fibaLegend" }, { n: 14, name: "S. Kropilák", pos: "PF", rt: 83 },
-    { n: 7, name: "V. Havlík", pos: "SG", rt: 80 }, { n: 15, name: "Z. Kos", pos: "C", rt: 81 },
-    { n: 5, name: "J. Zídek", pos: "PG", rt: 78 }, { n: 11, name: "J. Skála", pos: "PF", rt: 77 },
-  ]},
-  { name: "Netherlands", season: "1986", c: "#FF6600", players: [
-    { n: 10, name: "Rik Smits", pos: "C", rt: 88, trait: "theTower" }, { n: 5, name: "Jelle Esveldt", pos: "PG", rt: 78 },
-    { n: 11, name: "Hans Heijdeman", pos: "SG", rt: 77 }, { n: 8, name: "Raymond Bottse", pos: "SF", rt: 76 },
-    { n: 15, name: "Peter van Noord", pos: "PF", rt: 76 }, { n: 6, name: "Ronald Schilp", pos: "SG", rt: 74 },
-  ]},
-  { name: "Panama", season: "1986", c: "#005293", alt: "#D21034", players: [
-    { n: 14, name: "Rolando Frazer", pos: "PF", rt: 85, trait: "pointGame42" }, { n: 11, name: "Mario Butler", pos: "C", rt: 82 },
-    { n: 7, name: "E. Rivas", pos: "SG", rt: 78 }, { n: 5, name: "G. Gálvez", pos: "PG", rt: 77 },
-    { n: 9, name: "L. Malcolm", pos: "SF", rt: 76 }, { n: 12, name: "R. Gálvez", pos: "PF", rt: 74 },
-  ]},
-  { name: "Israel", season: "1986", c: "#0038B8", alt: "#FFFFFF", players: [
-    { n: 10, name: "Doron Jamchi", pos: "SG", rt: 84, trait: "flameThrower" }, { n: 7, name: "M. Berkowitz", pos: "PG", rt: 81 },
-    { n: 14, name: "A. Daniel", pos: "SF", rt: 78 }, { n: 15, name: "L. Leaf", pos: "C", rt: 79 },
-    { n: 9, name: "G. Turgeman", pos: "PF", rt: 76 }, { n: 5, name: "H. Kuttler", pos: "SG", rt: 74 },
-  ]},
-  { name: "Ukraine", season: "2014", c: "#0057B8", alt: "#FFD700", players: [
-    { n: 0, name: "Pooh Jeter", pos: "PG", rt: 83, trait: "chaosEnergy" }, { n: 14, name: "Kyrylo Fesenko", pos: "C", rt: 80 },
-    { n: 8, name: "O. Mishula", pos: "SG", rt: 77 }, { n: 13, name: "E. Gladyr", pos: "SF", rt: 78 },
-    { n: 15, name: "M. Korniyenko", pos: "PF", rt: 76 }, { n: 7, name: "D. Zabirchenko", pos: "SG", rt: 74 },
-  ]},
-  { name: "Tunisia", season: "2019", c: "#E70013", players: [
-    { n: 50, name: "Salah Mejri", pos: "C", rt: 84, trait: "foulTrouble" }, { n: 7, name: "Michael Roll", pos: "SG", rt: 81 },
-    { n: 12, name: "M. Ben Romdhane", pos: "PF", rt: 79 }, { n: 5, name: "Omar Abada", pos: "PG", rt: 77 },
-    { n: 9, name: "M. Hadidane", pos: "SF", rt: 76 }, { n: 15, name: "R. Slimane", pos: "PF", rt: 74 },
-  ]},
-  { name: "Egypt", season: "2023", c: "#C8102E", alt: "#FFFFFF", players: [
-    { n: 50, name: "Assem Marei", pos: "C", rt: 82 }, { n: 5, name: "Anas Mahmoud", pos: "PF", rt: 79 },
-    { n: 1, name: "Ehab Amin", pos: "SG", rt: 80 }, { n: 7, name: "Omar Oraby", pos: "C", rt: 76 },
-    { n: 10, name: "W. Abouelanin", pos: "PG", rt: 76 }, { n: 14, name: "A. Gendy", pos: "SF", rt: 75 },
-  ]},
-  { name: "Ivory Coast", season: "2023", c: "#FF8200", alt: "#009E60", players: [
-    { n: 12, name: "Vafessa Fofana", pos: "SF", rt: 80 }, { n: 2, name: "Bazoumana Koné", pos: "PG", rt: 78 },
-    { n: 1, name: "Charles Abouo", pos: "SG", rt: 77 }, { n: 23, name: "Cedric Bah", pos: "C", rt: 78 },
-    { n: 4, name: "Patrick Tape", pos: "PF", rt: 76 }, { n: 45, name: "N. Zouzoua", pos: "SG", rt: 74 },
-  ]},
-  { name: "Bulgaria", season: "1959", c: "#00966E", alt: "#D62612", players: [
-    { n: 10, name: "G. Panov", pos: "SF", rt: 80 }, { n: 7, name: "V. Radev", pos: "PG", rt: 77 },
-    { n: 14, name: "I. Mirchev", pos: "PF", rt: 78 }, { n: 15, name: "L. Panov", pos: "C", rt: 79 },
-    { n: 9, name: "A. Atanasov", pos: "SG", rt: 76 }, { n: 5, name: "K. Georgiev", pos: "SG", rt: 74 },
-  ]},
-  { name: "Peru", season: "1950", c: "#D91023", alt: "#FFFFFF", players: [
-    { n: 10, name: "R. Asca", pos: "SF", rt: 78 }, { n: 5, name: "O. Morante", pos: "PG", rt: 76 },
-    { n: 14, name: "E. Vergara", pos: "PF", rt: 77 }, { n: 15, name: "J. Alegre", pos: "C", rt: 77 },
-    { n: 8, name: "C. Vásquez", pos: "SG", rt: 75 }, { n: 7, name: "A. Ferreyros", pos: "SG", rt: 74 },
-  ]},
-  { name: "Ecuador", season: "1950", c: "#FFDD00", alt: "#034EA2", players: [
-    { n: 10, name: "J. Villacís", pos: "SF", rt: 77 }, { n: 5, name: "C. Garcés", pos: "PG", rt: 75 },
-    { n: 14, name: "R. Alarcón", pos: "PF", rt: 76 }, { n: 15, name: "M. Freire", pos: "C", rt: 76 },
-    { n: 8, name: "A. Burbano", pos: "SG", rt: 74 }, { n: 7, name: "L. Noboa", pos: "SG", rt: 73 },
-  ]},
-  { name: "Paraguay", season: "1954", c: "#D52B1E", alt: "#0038A8", players: [
-    { n: 10, name: "A. López", pos: "SF", rt: 77 }, { n: 5, name: "J. Zapag", pos: "PG", rt: 75 },
-    { n: 14, name: "R. Duarte", pos: "PF", rt: 76 }, { n: 15, name: "C. Brun", pos: "C", rt: 76 },
-    { n: 8, name: "E. Insfrán", pos: "SG", rt: 74 }, { n: 7, name: "M. Fretes", pos: "SG", rt: 73 },
-  ]},
-  { name: "Chinese Taipei", season: "1954", c: "#FE001A", alt: "#000095", players: [
-    { n: 10, name: "Tong Suet-fong", pos: "SF", rt: 78 }, { n: 5, name: "Hsieh Chin-kuang", pos: "PG", rt: 76 },
-    { n: 14, name: "Wang Yih-jiun", pos: "PF", rt: 77 }, { n: 15, name: "Chu Hsiu-hsiung", pos: "C", rt: 77 },
-    { n: 8, name: "Liao Wei-cheng", pos: "SG", rt: 75 }, { n: 7, name: "Lin Chun-chi", pos: "SG", rt: 74 },
-  ]},
-  { name: "Colombia", season: "1982", c: "#FCD116", alt: "#003893", players: [
-    { n: 10, name: "H. Rivas", pos: "SF", rt: 78 }, { n: 5, name: "J. Moncada", pos: "PG", rt: 76 },
-    { n: 14, name: "C. Serna", pos: "PF", rt: 77 }, { n: 15, name: "A. Escobar", pos: "C", rt: 77 },
-    { n: 8, name: "R. Caicedo", pos: "SG", rt: 75 }, { n: 7, name: "F. López", pos: "SG", rt: 74 },
-  ]},
-  { name: "Central African Republic", season: "1974", c: "#003082", alt: "#289728", players: [
-    { n: 10, name: "F. Goyémidé", pos: "SF", rt: 78 }, { n: 5, name: "J. Touadéra", pos: "PG", rt: 75 },
-    { n: 14, name: "A. Yangongo", pos: "PF", rt: 76 }, { n: 15, name: "M. N'Dinga", pos: "C", rt: 77 },
-    { n: 8, name: "P. Kongbo", pos: "SG", rt: 74 }, { n: 7, name: "S. Maka", pos: "SG", rt: 73 },
-  ]},
-  { name: "Malaysia", season: "1986", c: "#CC0001", alt: "#010066", players: [
-    { n: 8, name: "Tan Kim Chin", pos: "SG", rt: 79 }, { n: 5, name: "Gong Siew Hoong", pos: "PG", rt: 75 },
-    { n: 14, name: "Chow Kam Thai", pos: "PF", rt: 76 }, { n: 15, name: "Yap Cheng Tong", pos: "C", rt: 76 },
-    { n: 10, name: "Lee Yoke Wah", pos: "SF", rt: 75 }, { n: 7, name: "Kwa Chong Seng", pos: "SG", rt: 73 },
-  ]},
-  { name: "Algeria", season: "2002", c: "#006233", alt: "#D21034", players: [
-    { n: 10, name: "S. Harouni", pos: "SF", rt: 78 }, { n: 5, name: "N. Hamdini", pos: "PG", rt: 76 },
-    { n: 14, name: "A. Abboud", pos: "PF", rt: 77 }, { n: 15, name: "M. Benzeggane", pos: "C", rt: 77 },
-    { n: 8, name: "K. Dahmani", pos: "SG", rt: 75 }, { n: 7, name: "Y. Merah", pos: "SG", rt: 74 },
-  ]},
-  { name: "Qatar", season: "2006", c: "#8A1538", players: [
-    { n: 10, name: "Yasseen Ismail", pos: "SF", rt: 78 }, { n: 5, name: "Malek Saleem", pos: "PG", rt: 76 },
-    { n: 14, name: "Mohammed Turki", pos: "PF", rt: 76 }, { n: 15, name: "Ali Turki", pos: "C", rt: 77 },
-    { n: 8, name: "Khalid Suliman", pos: "SG", rt: 75 }, { n: 7, name: "Erfan Ali Saeed", pos: "SG", rt: 74 },
   ]},
 ];
 
@@ -558,6 +454,55 @@ function readShareFromUrl() {
   return decodeRunShare(window.location.search);
 }
 
+function nationSlug(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function nationsFromTeams() {
+  const map = new Map();
+  for (const t of TEAMS) {
+    if (!map.has(t.name)) map.set(t.name, []);
+    map.get(t.name).push(t);
+  }
+  return [...map.entries()]
+    .map(([name, squads]) => ({
+      name,
+      slug: nationSlug(name),
+      c: squads[0].c,
+      alt: squads[0].alt,
+      squads: [...squads].sort((a, b) => Number(b.season) - Number(a.season)),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const NATIONS_ARCHIVE = nationsFromTeams();
+const ARCHIVE_STATS = {
+  nations: NATIONS_ARCHIVE.length,
+  squads: TEAMS.length,
+  players: TEAMS.reduce((s, t) => s + t.players.length, 0),
+  traits: TEAMS.reduce((s, t) => s + t.players.filter((p) => p.trait || p.traits?.length).length, 0),
+  years: (() => {
+    const ys = [...new Set(TEAMS.map((t) => t.season))].sort();
+    return { first: ys[0], last: ys[ys.length - 1], count: ys.length };
+  })(),
+};
+
+function readBrowseFromUrl() {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("card")) return null;
+  const teamSlug = params.get("team");
+  if (teamSlug) {
+    const nation = NATIONS_ARCHIVE.find((n) => n.slug === teamSlug);
+    if (nation) return { screen: "team", browseNation: nation.name };
+  }
+  if (params.has("teams")) return { screen: "teams", browseNation: null };
+  if (params.has("howto")) return { screen: "howto", browseNation: null };
+  if (params.has("about")) return { screen: "about", browseNation: null };
+  if (params.has("leaderboard")) return { screen: "leaderboard", browseNation: null };
+  return null;
+}
+
 const shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
 
 /* 2K-style rating gem tiers */
@@ -653,6 +598,22 @@ const TRAIT_DEFS = {
       "With the game on a knife's edge, {player} went iso-heavy — and paid for it.",
     ],
   },
+  brickFactory: {
+    label: "BRICK FACTORY", pos: false, chance: 0.10,
+    desc: "Forces hero shots that don't fall — empty possessions pile up",
+    recapNeg: [
+      "{player} hunted every shot and missed nearly all of them — a brick factory that stalled the whole offense.",
+      "Iso after iso, nothing went down for {player}. The hero-ball heater never arrived; only airballs and empty trips.",
+    ],
+  },
+  refMeltdown: {
+    label: "REF MELTDOWN", pos: false, chance: 0.10,
+    desc: "Argues with officials — technical energy kills the whole team's rhythm",
+    recapNeg: [
+      "{player} lost it with the refs — a technical tirade that froze the whole five for two quarters.",
+      "After {player}'s meltdown at the officials, the team never got its rhythm back — whistles, dead balls, and cold shots.",
+    ],
+  },
   goesMissing: {
     label: "GOES MISSING", pos: false, chance: 0.10,
     desc: "Vanishes for a full quarter",
@@ -708,7 +669,7 @@ const TRAIT_DEFS = {
     ],
   },
   flameThrower: {
-    label: "FLAME THROWER", pos: true, chance: 0.10,
+    label: "FLAME THROWER", pos: true, chance: 0.08,
     desc: "Explosive random quarter",
     recapPos: [
       "{player} caught fire in the {qn} quarter — a solo burst that swung the whole game.",
@@ -764,7 +725,7 @@ const TRAIT_DEFS = {
     ],
   },
   risingSun: {
-    label: "RISING SUN", pos: true, chance: 0.14,
+    label: "RISING SUN", pos: true, chance: 0.08,
     desc: "Quiet midrange takeover in Q3",
     recapPos: [
       "{player} rose in the third with that quiet midrange — {oppN} had no answer.",
@@ -807,6 +768,20 @@ const TRAIT_DEFS = {
 
 const SIGNIFICANT_TRAIT_DELTA = 5;
 const rollTrait = (chance) => Math.random() < chance;
+const traitChance = (p, def) =>
+  typeof p.traitChance === "number" ? p.traitChance : def.chance;
+
+function playerTraits(p) {
+  if (!p) return [];
+  if (Array.isArray(p.traits) && p.traits.length) {
+    return p.traits.filter((id) => TRAIT_DEFS[id]);
+  }
+  return p.trait && TRAIT_DEFS[p.trait] ? [p.trait] : [];
+}
+
+function hasTrait(p, id) {
+  return playerTraits(p).includes(id);
+}
 
 function applyLineupTraits(lineup, myQ, opQ, ctx) {
   const fired = [];
@@ -820,48 +795,48 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
   const players = lineup.filter(Boolean);
 
   for (const p of players) {
-    if (!p.trait || !TRAIT_DEFS[p.trait]) continue;
-    const id = p.trait;
+    for (const id of playerTraits(p)) {
     const def = TRAIT_DEFS[id];
+    const chance = traitChance(p, def);
 
-    if (id === "fibaLegend" && rollTrait(def.chance)) {
+    if (id === "fibaLegend" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 0, d: 3 }]);
       add(p, id, 0, 3, "Opened hot in Q1");
     }
-    if (id === "goldMedalDna" && rollTrait(def.chance)) {
+    if (id === "goldMedalDna" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 0, d: 2 }, { q: 2, d: 1 }]);
       add(p, id, 0, 3, "Steady +3 across the game");
     }
-    if (id === "chaosEnergy" && rollTrait(def.chance)) {
+    if (id === "chaosEnergy" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 2, d: 6 }]);
       add(p, id, 2, 6, "Midgame chaos in Q3");
     }
-    if (id === "flameThrower" && rollTrait(def.chance)) {
+    if (id === "flameThrower" && rollTrait(chance)) {
       const q = Math.floor(Math.random() * 4);
       qs = patchQ(qs, [{ q, d: 10 }]);
       add(p, id, q, 10, `Erupted in ${QN[q]}`);
     }
-    if (id === "unicorn" && ctx.style.id === "bal" && rollTrait(def.chance)) {
+    if (id === "unicorn" && ctx.style.id === "bal" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: 3 }, { q: 2, d: 2 }]);
       add(p, id, 1, 5, "Unicorn spacing Q2–Q3");
     }
-    if (id === "pointGame42" && ctx.myRt - ctx.oppRt >= 4 && rollTrait(def.chance)) {
+    if (id === "pointGame42" && ctx.myRt - ctx.oppRt >= 4 && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 0, d: 2 }, { q: 1, d: 2 }, { q: 2, d: 2 }, { q: 3, d: 1 }]);
       add(p, id, 0, 7, "Full-game dominance vs weaker foe");
     }
-    if (id === "secondHalfBeast" && qs[0] + qs[1] < ops[0] + ops[1] && rollTrait(def.chance)) {
+    if (id === "secondHalfBeast" && qs[0] + qs[1] < ops[0] + ops[1] && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 2, d: 3 }, { q: 3, d: 3 }]);
       add(p, id, 2, 6, "Second-half rally");
     }
-    if (id === "playoffFade" && ctx.gi >= 5 && rollTrait(def.chance)) {
+    if (id === "playoffFade" && ctx.gi >= 5 && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: -2 }, { q: 2, d: -2 }, { q: 3, d: -3 }]);
       add(p, id, 2, -7, "Knockout fade Q2–Q4");
     }
-    if (id === "foulTrouble" && rollTrait(def.chance)) {
+    if (id === "foulTrouble" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -3 }]);
       add(p, id, 1, -6, "Foul trouble Q2–Q3");
     }
-    if (id === "goesMissing" && rollTrait(def.chance)) {
+    if (id === "goesMissing" && rollTrait(chance)) {
       const q = Math.floor(Math.random() * 4);
       const lost = qs[q];
       if (lost > 0) {
@@ -869,50 +844,60 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
         add(p, id, q, -lost, `No-show in ${QN[q]}`);
       }
     }
-    if (id === "mrImportant" && rollTrait(def.chance)) {
+    if (id === "mrImportant" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 2, d: 4 }, { q: 3, d: 3 }]);
       add(p, id, 2, 7, "Mr. Important Q3–Q4");
     }
-    if (id === "greatWall" && rollTrait(def.chance)) {
+    if (id === "greatWall" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 1, d: 3 }]);
       add(p, id, 0, 6, "Great Wall Q1–Q2");
     }
-    if (id === "ak47" && rollTrait(def.chance)) {
+    if (id === "ak47" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: 3 }]);
       ops = patchQ(ops, [{ q: 0, d: -2 }, { q: 1, d: -2 }]);
       add(p, id, 1, 7, "AK-47 two-way Q1–Q2");
     }
-    if (id === "connector" && rollTrait(def.chance)) {
+    if (id === "connector" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 0, d: 1 }, { q: 1, d: 1 }, { q: 2, d: 1 }, { q: 3, d: 1 }]);
       add(p, id, 0, 4, "Connector glue all four");
     }
-    if (id === "risingSun" && rollTrait(def.chance)) {
+    if (id === "risingSun" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 2, d: 6 }]);
       add(p, id, 2, 6, "Rising Sun Q3");
     }
-    if (id === "theTower" && rollTrait(def.chance)) {
+    if (id === "theTower" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 2, d: 3 }]);
       add(p, id, 0, 6, "The Tower Q1 + Q3");
     }
-    if (id === "glassKnee" && rollTrait(def.chance)) {
+    if (id === "glassKnee" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -3 }]);
       add(p, id, 1, -6, "Glass knee Q2–Q3");
     }
-    if (id === "hotHead" && rollTrait(def.chance)) {
+    if (id === "hotHead" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 2, d: -5 }]);
       add(p, id, 2, -5, "Hot head Q3");
     }
-    if (id === "flopCity" && rollTrait(def.chance)) {
+    if (id === "flopCity" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -2 }]);
       add(p, id, 1, -5, "Flop city Q2–Q3");
+    }
+    if (id === "brickFactory" && rollTrait(chance)) {
+      qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -6 }, { q: 3, d: -3 }]);
+      add(p, id, 2, -12, "Brick factory — hero shots clank");
+    }
+    if (id === "refMeltdown" && rollTrait(chance)) {
+      qs = patchQ(qs, [{ q: 1, d: -4 }, { q: 2, d: -4 }, { q: 3, d: -2 }]);
+      ops = patchQ(ops, [{ q: 1, d: 2 }]);
+      add(p, id, 1, -12, "Ref meltdown — whole team loses it");
     }
     if (id === "elCapitan") {
       const through3 = myQ[0] + myQ[1] + myQ[2];
       const opThrough3 = ops[0] + ops[1] + ops[2];
-      if (Math.abs(through3 - opThrough3) <= 6 && rollTrait(def.chance)) {
+      if (Math.abs(through3 - opThrough3) <= 6 && rollTrait(chance)) {
         qs = patchQ(qs, [{ q: 3, d: 6 }]);
         add(p, id, 3, 6, "El Capitán Q4");
       }
+    }
     }
   }
 
@@ -921,7 +906,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
   let op = qSum(ops);
 
   for (const p of players) {
-    if (p.trait === "hackAShaq" && my > op && rollTrait(TRAIT_DEFS.hackAShaq.chance)) {
+    if (hasTrait(p, "hackAShaq") && my > op && rollTrait(traitChance(p, TRAIT_DEFS.hackAShaq))) {
       qs = patchQ(qs, [{ q: 2, d: -3 }, { q: 3, d: -3 }]);
       add(p, "hackAShaq", 3, -6, "Hack-a-Shaq at the line Q3–Q4");
       my = qSum(qs);
@@ -932,7 +917,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
   op = qSum(ops);
   if (my < op && op - my <= 5) {
     for (const p of players) {
-      if (p.trait === "heroBall" && rollTrait(TRAIT_DEFS.heroBall.chance)) {
+      if (hasTrait(p, "heroBall") && rollTrait(traitChance(p, TRAIT_DEFS.heroBall))) {
         qs = patchQ(qs, [{ q: 2, d: -5 }]);
         add(p, "heroBall", 2, -5, "Hero-ball Q3 in a tight loss");
         my = qSum(qs);
@@ -944,8 +929,9 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
 }
 
 function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed) {
-  const base = simGame(myRt, style, opp, gi);
-  const ctx = { gi, style, myRt, oppRt: teamRating(opp), gamesPlayed };
+  const fitStyle = fittedStyle(style, lineup);
+  const base = simGame(myRt, fitStyle, opp, gi);
+  const ctx = { gi, style: fitStyle, myRt, oppRt: teamRating(opp), gamesPlayed };
   const { myQ, opQ, my, fired } = applyLineupTraits(lineup, base.myQ, base.opQ, ctx);
   let finalMy = my;
   let finalOp = qSum(opQ);
@@ -955,7 +941,7 @@ function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed) {
   let otOp = [];
   let otPeriods = 0;
   if (finalMy === finalOp) {
-    const ot = resolveOvertime(finalMy, finalOp, myRt, style, ctx.oppRt);
+    const ot = resolveOvertime(finalMy, finalOp, myRt, fitStyle, ctx.oppRt);
     finalMy = ot.my;
     finalOp = ot.op;
     otMy = ot.otMy;
@@ -975,6 +961,91 @@ function boxScore(lineup, total) {
 /* ---- play-by-play generation for animated sims ---- */
 const rndT = (a) => a[Math.floor(Math.random() * a.length)];
 
+/** Guards/wings/forwards can splash; centers only with stretch-scoring traits. */
+function canSplashThree(p) {
+  if (!p) return false;
+  if (p.pos === "PG" || p.pos === "SG" || p.pos === "SF" || p.pos === "PF") return true;
+  return hasTrait(p, "unicorn") || hasTrait(p, "theTower") || hasTrait(p, "flameThrower");
+}
+
+/** Traditional paint centers (Shaq, Yao, Gobert…) — not stretch fives. */
+function isPaintBig(p) {
+  return !!p && p.pos === "C" && !canSplashThree(p);
+}
+
+/** Offense-first / liability guards — soft on Lockdown schemes. */
+const SOFT_GUARD_TRAITS = new Set([
+  "flameThrower", "playoffFade", "goesMissing", "heroBall", "chaosEnergy", "refMeltdown", "brickFactory",
+]);
+
+function isSoftGuard(p) {
+  return !!p && (p.pos === "PG" || p.pos === "SG")
+    && playerTraits(p).some((id) => SOFT_GUARD_TRAITS.has(id));
+}
+
+function lineupPlayers(lineup) {
+  if (!lineup) return [];
+  if (Array.isArray(lineup)) return lineup.filter(Boolean);
+  return SLOTS.map((s) => lineup[s]).filter(Boolean);
+}
+
+function lineupCenter(lineup) {
+  if (!lineup) return null;
+  if (Array.isArray(lineup)) return lineup.find((p) => p?.pos === "C") || null;
+  return lineup.C || null;
+}
+
+function topSoftGuard(lineup) {
+  return lineupPlayers(lineup)
+    .filter(isSoftGuard)
+    .sort((a, b) => (b.rt || 0) - (a.rt || 0))[0] || null;
+}
+
+/**
+ * Style fit:
+ * - Paint bigs drag Run & Gun, boost Lockdown.
+ * - Soft guards blunt Lockdown (small penalty).
+ */
+function fittedStyle(style, lineup) {
+  let s = { ...style };
+  const paint = isPaintBig(lineupCenter(lineup));
+  const softCount = lineupPlayers(lineup).filter(isSoftGuard).length;
+
+  if (paint) {
+    if (s.id === "run") {
+      s = { ...s, off: s.off - 3, def: s.def - 1, pace: Math.round(s.pace * 0.5) };
+    } else if (s.id === "lock") {
+      s = { ...s, def: s.def + 2 };
+    }
+  }
+
+  if (softCount > 0 && s.id === "lock") {
+    s = { ...s, def: s.def - (softCount >= 2 ? 3 : 2) };
+  }
+
+  return s;
+}
+
+/** Prefer poor-fit warnings over good-fit praise when both apply. */
+function styleFitHint(style, lineup) {
+  const center = lineupCenter(lineup);
+  const soft = topSoftGuard(lineup);
+
+  if (style.id === "run" && isPaintBig(center)) {
+    return { tone: "poor", label: "POOR FIT", detail: `${center.name} · halfcourt paint` };
+  }
+  if (style.id === "lock" && soft) {
+    return { tone: "poor", label: "POOR FIT", detail: `${soft.name} · needs space` };
+  }
+  if (style.id === "lock" && isPaintBig(center)) {
+    return { tone: "good", label: "GOOD FIT", detail: `${center.name} · anchors the paint` };
+  }
+  if (style.id === "run" && center?.pos === "C" && canSplashThree(center)) {
+    return { tone: "good", label: "GOOD FIT", detail: `${center.name} · stretches the break` };
+  }
+  return null;
+}
+
 function buildEvents(g, box, opp) {
   const buckets = (total) => {
     const b = []; let t = total;
@@ -985,17 +1056,37 @@ function buildEvents(g, box, opp) {
     }
     return b;
   };
-  const pickScorer = () => {
-    const tot = box.reduce((s, p) => s + p.pts, 0) || 1;
+  const pickScorer = (pool = box) => {
+    const list = pool.length ? pool : box;
+    const tot = list.reduce((s, p) => s + p.pts, 0) || 1;
     let r = Math.random() * tot;
-    for (const p of box) { r -= p.pts; if (r <= 0) return p; }
-    return box[0];
+    for (const p of list) { r -= p.pts; if (r <= 0) return p; }
+    return list[0];
   };
   const oppName = `${opp.name} '${opp.season.slice(2)}`;
-  const myText = (n, pts) =>
-    pts === 3 ? rndT([`${n} splashes a triple!`, `${n} pulls up from deep — BANG!`, `${n} buries the corner three`]) :
-    pts === 1 ? `${n} sinks the free throw` :
-    rndT([`${n} finishes strong at the rim`, `${n} knocks down the mid-range`, `${n} spins baseline for two`, `${n} scores off the pick and roll`, `${n} beats his man off the dribble`]);
+  const myText = (p, pts) => {
+    const n = p.name;
+    if (pts === 3) {
+      return rndT([`${n} splashes a triple!`, `${n} pulls up from deep — BANG!`, `${n} buries the corner three`]);
+    }
+    if (pts === 1) return `${n} sinks the free throw`;
+    if (p.pos === "C") {
+      return rndT([
+        `${n} finishes strong at the rim`,
+        `${n} drops in the hook`,
+        `${n} seals and scores on the block`,
+        `${n} scores off the pick and roll`,
+        `${n} puts it back at the rim`,
+      ]);
+    }
+    return rndT([
+      `${n} finishes strong at the rim`,
+      `${n} knocks down the mid-range`,
+      `${n} spins baseline for two`,
+      `${n} scores off the pick and roll`,
+      `${n} beats his man off the dribble`,
+    ]);
+  };
   const opText = (pts) =>
     pts === 3 ? rndT([`${oppName} answers from downtown`, `${oppName} hits a deep three`]) :
     pts === 1 ? `${oppName} converts at the line` :
@@ -1013,7 +1104,18 @@ function buildEvents(g, box, opp) {
           const otRem = 300 - (otSec % 300);
           return `OT${otNum} ${Math.floor(otRem / 60)}:${String(otRem % 60).padStart(2, "0")}`;
         })();
-    const text = e.team === "me" ? myText(pickScorer().name, e.pts) : opText(e.pts);
+    let text;
+    if (e.team === "me") {
+      if (e.pts === 3) {
+        const splashers = box.filter(canSplashThree);
+        if (splashers.length) text = myText(pickScorer(splashers), 3);
+        else text = myText(pickScorer(), 2); // no shooter — interior copy; pts stay 3 for totals
+      } else {
+        text = myText(pickScorer(), e.pts);
+      }
+    } else {
+      text = opText(e.pts);
+    }
     return { ...e, sec, q: sec < 2400 ? q : 4 + Math.floor((sec - 2400) / 300), clock, text };
   };
   const regEvs = [
@@ -1275,7 +1377,9 @@ function buildStory(g, box, style) {
     `${oppN} had no answer for ${top.name} (${top.pts} pts) on either end of the floor.`,
   ]);
   else if (m >= 10) story = rndT([
-    `${top.name} caught fire from the three-point line — ${top.pts} points powered a comfortable win.`,
+    canSplashThree(top)
+      ? `${top.name} caught fire from the three-point line — ${top.pts} points powered a comfortable win.`
+      : `${top.name} dominated inside — ${top.pts} points powered a comfortable win.`,
     `A ${bestQ}-point ${qn} quarter broke it open; ${top.name} led the way with ${top.pts}.`,
     style.id === "lock"
       ? `The lockdown defense wore ${oppN} down while ${top.name} did the scoring (${top.pts} pts).`
@@ -1367,6 +1471,14 @@ const css = `
 .segTip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
   border:5px solid transparent;border-top-color:#303c56;}
 .segCtrl button:hover .segTip,.segCtrl button:focus-visible .segTip{opacity:1;visibility:visible;}
+.fitChip{display:inline-flex;align-items:center;margin-top:.55rem;padding:.35rem .7rem;
+  font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
+  font-size:11px;letter-spacing:.04em;text-transform:uppercase;line-height:1.2;}
+.fitChip.good{background:#1d3a2a;color:#7ee2a8;border:1px solid #2c5c40;}
+.fitChip.poor{background:#3a1d22;color:#f08a8a;border:1px solid #5c2c34;}
+.fitChipLabel{letter-spacing:.14em;}
+.fitChipSep{margin:0 .45rem;opacity:.45;font-style:normal;}
+.fitChipDetail{font-weight:700;letter-spacing:.06em;opacity:.92;}
 .scoreDev{position:relative;overflow:visible;}
 .traitTip{position:absolute;transform:translate(calc(-50% + var(--tip-shift, 0px)),calc(-100% - 12px));width:max-content;max-width:220px;
   padding:.55rem .7rem;pointer-events:none;z-index:6;
@@ -1381,8 +1493,36 @@ const css = `
   letter-spacing:.1em;text-transform:uppercase;color:#5f6b7d;margin-top:.15rem;}
 .traitTipBody{font-family:'Saira',sans-serif;font-size:12px;line-height:1.35;color:#c6d2e3;margin-top:.35rem;
   text-wrap:pretty;}
+.traitLabelWrap{outline:none;}
+.traitLabelTrigger{text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:currentColor;text-underline-offset:3px;text-decoration-thickness:1px;}
+.traitLabelWrap:hover .traitLabelTrigger,.traitLabelWrap:focus-within .traitLabelTrigger{text-decoration-style:solid;}
+.traitLabelTip{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%) translateX(-4px);
+  width:max-content;max-width:200px;padding:.65rem .75rem .7rem;pointer-events:none;z-index:40;
+  background:#121826;border:1px solid #303c56;border-left:3px solid var(--trait-c,#7ee2a8);
+  box-shadow:0 10px 28px rgba(0,0,0,.55);opacity:0;visibility:hidden;
+  transition:opacity .14s ease,transform .14s ease,visibility .14s;}
+.traitLabelTip::before{content:"";position:absolute;right:100%;top:50%;transform:translateY(-50%);
+  border:5px solid transparent;border-right-color:#303c56;}
+.traitLabelWrap:hover .traitLabelTip,.traitLabelWrap:focus-within .traitLabelTip{opacity:1;visibility:visible;transform:translateY(-50%) translateX(0);}
+.traitLabelTipKind{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;color:#7d8ba0;display:block;line-height:1;}
+.traitLabelTipDesc{font-family:'Saira',sans-serif;font-size:12px;line-height:1.4;color:#c6d2e3;margin-top:.4rem;
+  display:block;text-wrap:pretty;}
+@media (max-width:639px){
+  .traitLabelTip{left:0;top:calc(100% + 8px);transform:translateY(-4px);max-width:min(200px,70vw);}
+  .traitLabelTip::before{right:auto;left:14px;top:auto;bottom:100%;transform:none;
+    border:5px solid transparent;border-bottom-color:#303c56;border-right-color:transparent;}
+  .traitLabelWrap:hover .traitLabelTip,.traitLabelWrap:focus-within .traitLabelTip{transform:translateY(0);}
+}
 .scoreNum{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
   color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.7);}
+.qByQ{display:grid;gap:.2rem .35rem;align-items:center;text-align:center;}
+.qByQHead{font-family:'Saira Condensed',sans-serif;font-size:10px;letter-spacing:.1em;
+  color:#5f6b7d;font-weight:700;line-height:1;}
+.qByQSide{font-family:'Saira Condensed',sans-serif;font-size:10px;letter-spacing:.08em;
+  font-weight:700;text-align:left;line-height:1;}
+.qByQCell{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
+  font-size:16px;font-variant-numeric:tabular-nums;line-height:1.15;}
 .rowHover{transition:background .1s;} .rowHover:hover{background:rgba(232,70,90,.10);}
 .gemShield{clip-path:polygon(50% 0,100% 22%,100% 78%,50% 100%,0 78%,0 22%);}
 .matchCard{display:flex;align-items:stretch;padding:0;overflow:hidden;}
@@ -1440,6 +1580,28 @@ function gameMarginLabel(g, i) {
   if (isDreamGame(g)) return g.my > g.op ? "BONUS WIN" : "DREAM TEAM WINS";
   if (g.my > g.op) return "✓ WIN";
   return i < 3 ? "GROUP LOSS — SWEEP GONE" : i < 5 ? "2ND ROUND LOSS — SWEEP GONE" : "ELIMINATED";
+}
+
+function QuarterByQ({ myQ, opQ, otMy = [], otOp = [], myColor = "#E8465A", opColor = "#93a1b5" }) {
+  const otN = Math.max(otMy.length, otOp.length);
+  const headers = ["Q1", "Q2", "Q3", "Q4", ...Array.from({ length: otN }, (_, i) => (otN === 1 ? "OT" : `OT${i + 1}`))];
+  const my = [...myQ, ...otMy];
+  const op = [...opQ, ...otOp];
+  const cellColor = (a, b) => (a > b ? "#EAF0F7" : a < b ? "#5f6b7d" : "#93a1b5");
+  return (
+    <div className="qByQ" style={{ gridTemplateColumns: `2.4rem repeat(${headers.length}, minmax(0, 1fr))` }}>
+      <span aria-hidden="true" />
+      {headers.map((h) => <span key={h} className="qByQHead">{h}</span>)}
+      <span className="qByQSide" style={{ color: myColor }}>YOU</span>
+      {my.map((n, i) => (
+        <span key={`m${i}`} className="qByQCell" style={{ color: cellColor(n, op[i] ?? 0) }}>{n}</span>
+      ))}
+      <span className="qByQSide" style={{ color: opColor }}>OPP</span>
+      {op.map((n, i) => (
+        <span key={`o${i}`} className="qByQCell" style={{ color: cellColor(n, my[i] ?? 0) }}>{n}</span>
+      ))}
+    </div>
+  );
 }
 
 const GAME_RESULT_STYLES = {
@@ -1566,9 +1728,161 @@ const Gem = ({ rt, size = 34 }) => {
   );
 };
 
+const TraitLabel = ({ traitId }) => {
+  const def = TRAIT_DEFS[traitId];
+  if (!def) return null;
+  const color = def.pos ? "#7ee2a8" : "#f08a8a";
+  return (
+    <span className="traitLabelWrap relative inline-block" style={{ ["--trait-c"]: color }}>
+      <span
+        className="traitLabelTrigger text-[11px] cursor-help"
+        style={{ color, letterSpacing: ".08em", fontFamily: "'Saira Condensed', sans-serif", fontWeight: 700 }}
+        tabIndex={0}
+      >
+        {def.label}
+      </span>
+      <span className="traitLabelTip" role="tooltip">
+        <span className="traitLabelTipKind" style={{ color }}>{def.pos ? "BOOST" : "RISK"}</span>
+        <span className="traitLabelTipDesc">{def.desc}</span>
+      </span>
+    </span>
+  );
+};
+
+const fieldChrome = {
+  background: "#0e1219", border: "1px solid #2f3d5c", color: "#EAF0F7",
+  outline: "none", borderRadius: 0,
+};
+
+const CountryCombobox = ({ value, onChange }) => {
+  const selected = countryByCode(value) || COUNTRIES[0];
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [highlight, setHighlight] = useState(0);
+  const rootRef = useRef(null);
+  const listRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const filtered = useMemo(
+    () => COUNTRIES.filter((c) => countryMatchesQuery(c, query)),
+    [query],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      if (!rootRef.current?.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    setHighlight(0);
+  }, [query, open]);
+
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const el = listRef.current.children[highlight];
+    el?.scrollIntoView?.({ block: "nearest" });
+  }, [highlight, open, filtered]);
+
+  const pick = (code) => {
+    onChange(code);
+    setOpen(false);
+    setQuery("");
+  };
+
+  const display = open ? query : `${selected.flag} ${selected.name}`;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="country-listbox"
+        aria-autocomplete="list"
+        autoComplete="off"
+        value={display}
+        placeholder="Type a country…"
+        onFocus={() => {
+          setOpen(true);
+          setQuery("");
+        }}
+        onChange={(e) => {
+          setOpen(true);
+          setQuery(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setOpen(true);
+            setHighlight((h) => Math.min(h + 1, Math.max(filtered.length - 1, 0)));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHighlight((h) => Math.max(h - 1, 0));
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (open && filtered[highlight]) pick(filtered[highlight].code);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            setOpen(false);
+            setQuery("");
+            inputRef.current?.blur();
+          }
+        }}
+        className="w-full px-3 py-2.5 text-sm"
+        style={fieldChrome}
+      />
+      {open && (
+        <ul
+          id="country-listbox"
+          ref={listRef}
+          role="listbox"
+          className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto"
+          style={{
+            background: "#0e1219",
+            border: "1px solid #2f3d5c",
+            boxShadow: "0 12px 28px rgba(0,0,0,.45)",
+          }}
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2.5 text-sm" style={{ color: "#7d8ba0" }}>No matches</li>
+          ) : (
+            filtered.map((c, i) => (
+              <li
+                key={c.code}
+                role="option"
+                aria-selected={c.code === value}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(c.code)}
+                onMouseEnter={() => setHighlight(i)}
+                className="px-3 py-2 text-sm cursor-pointer"
+                style={{
+                  background: i === highlight ? "#1a2438" : "transparent",
+                  color: c.code === value ? "#7ee2a8" : "#EAF0F7",
+                }}
+              >
+                {c.flag} {c.name}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 export default function PerfectSweep() {
   const shareInit = useMemo(() => readShareFromUrl(), []);
-  const [screen, setScreen] = useState(shareInit ? "card" : "home");
+  const browseInit = useMemo(() => (shareInit ? null : readBrowseFromUrl()), [shareInit]);
+  const [screen, setScreen] = useState(shareInit ? "card" : browseInit?.screen ?? "home");
+  const [browseNation, setBrowseNation] = useState(browseInit?.browseNation ?? null);
   const [deck, setDeck] = useState([]);
   const [rolls, setRolls] = useState(shareInit?.rolls ?? 0);
   const [lineup, setLineup] = useState(shareInit?.lineup ?? {});
@@ -1592,8 +1906,48 @@ export default function PerfectSweep() {
   const [dreamGamePlayed, setDreamGamePlayed] = useState(
     () => !!(shareInit?.games?.some(isDreamGame)),
   );
+  const [leaderboardSubmitted, setLeaderboardSubmitted] = useState(false);
+  const [hallSkipped, setHallSkipped] = useState(false);
+  const [hallNick, setHallNick] = useState("");
+  const [hallCountry, setHallCountry] = useState("US");
+  const [hallSubmitting, setHallSubmitting] = useState(false);
+  const [hallError, setHallError] = useState(null);
+  const [hallToast, setHallToast] = useState(null);
+  const [lbEntries, setLbEntries] = useState([]);
+  const [lbLoading, setLbLoading] = useState(false);
+  const [lbError, setLbError] = useState(null);
   const runId = useRef(0);
   const ctaAnchorRef = useRef(null);
+
+  const openTeams = () => {
+    setBrowseNation(null);
+    setScreen("teams");
+  };
+
+  const openAbout = () => {
+    setBrowseNation(null);
+    setScreen("about");
+  };
+
+  const openHowTo = () => {
+    setBrowseNation(null);
+    setScreen("howto");
+  };
+
+  const openLeaderboard = () => {
+    setBrowseNation(null);
+    setScreen("leaderboard");
+  };
+
+  const openNation = (name) => {
+    setBrowseNation(name);
+    setScreen("team");
+  };
+
+  const browseNationData = useMemo(
+    () => (browseNation ? NATIONS_ARCHIVE.find((n) => n.name === browseNation) : null),
+    [browseNation],
+  );
 
   const cur = deck[0];
   // strictly orthogonal, and never returns a nation/year already shown on this roll
@@ -1826,10 +2180,33 @@ export default function PerfectSweep() {
   useEffect(() => {
     if (screen === "card" && games.length && SLOTS.every((s) => lineup[s])) {
       window.history.replaceState(null, "", encodeRunShare({ rolls, groupOut, r2Out, lineup, games }));
-    } else if (screen !== "card" && window.location.search.includes("card=")) {
+      return;
+    }
+    if (screen === "teams") {
+      window.history.replaceState(null, "", `${window.location.pathname}?teams`);
+      return;
+    }
+    if (screen === "about") {
+      window.history.replaceState(null, "", `${window.location.pathname}?about`);
+      return;
+    }
+    if (screen === "howto") {
+      window.history.replaceState(null, "", `${window.location.pathname}?howto`);
+      return;
+    }
+    if (screen === "leaderboard") {
+      window.history.replaceState(null, "", `${window.location.pathname}?leaderboard`);
+      return;
+    }
+    if (screen === "team" && browseNation) {
+      window.history.replaceState(null, "", `${window.location.pathname}?team=${nationSlug(browseNation)}`);
+      return;
+    }
+    const q = window.location.search;
+    if (q.includes("card=") || q.includes("teams") || q.includes("team=") || q.includes("about") || q.includes("howto") || q.includes("leaderboard")) {
       window.history.replaceState(null, "", window.location.pathname);
     }
-  }, [screen, rolls, groupOut, r2Out, lineup, games]);
+  }, [screen, rolls, groupOut, r2Out, lineup, games, browseNation]);
 
   // After a match ends, bring the continue CTA into view (esp. mobile + standings).
   useEffect(() => {
@@ -1853,6 +2230,9 @@ export default function PerfectSweep() {
     setSwapsLeft(2); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false);
     setPickedThisRoll(false); setSeenNations([]); setSeenYears([]); setOpenFlow({});
     setDreamTeamMode(false); setDreamGamePlayed(false);
+    setLeaderboardSubmitted(false); setHallSkipped(false); setHallNick(""); setHallCountry("US");
+    setHallSubmitting(false); setHallError(null); setHallToast(null);
+    setBrowseNation(null);
     window.history.replaceState(null, "", window.location.pathname);
   };
 
@@ -1877,6 +2257,11 @@ export default function PerfectSweep() {
     }).sort((a, b) => b.ppg - a.ppg);
     const pf = tg.reduce((s, g) => s + g.my, 0), pa = tg.reduce((s, g) => s + g.op, 0);
     const margins = tg.map((g) => g.my - g.op);
+    const dreamBeaten = !!(dreamGame && dreamGame.my > dreamGame.op);
+    const dreamMargin = dreamBeaten ? dreamGame.my - dreamGame.op : null;
+    const marginScore = (perfect && dreamBeaten)
+      ? margins.reduce((a, b) => a + b, 0) + dreamMargin
+      : null;
     const record = `${wins}–${losses}`;
     const resultLabel = perfect ? `THE PERFECT SWEEP — ${record}`
       : eliminated ? (groupOut ? "OUT IN THE GROUP STAGE" : r2Out ? "OUT IN THE 2ND ROUND" : `ELIMINATED — ${tournamentGames[tournamentGames.length - 1].round}`)
@@ -1890,15 +2275,179 @@ export default function PerfectSweep() {
       avgMargin: margins.reduce((a, b) => a + b, 0) / tg.length,
       bigWin: Math.max(...margins),
       margins,
+      dreamMargin,
+      marginScore,
       ovr: Math.round(myRt),
     };
-  }, [screen, games, tournamentGames, lineup, wins, losses, perfect, eliminated, worldChampions, groupOut, r2Out, myRt]);
+  }, [screen, games, tournamentGames, dreamGame, lineup, wins, losses, perfect, eliminated, worldChampions, groupOut, r2Out, myRt]);
+
+  const showHallModal = screen === "done"
+    && perfect
+    && dreamGamePlayed
+    && dreamGame
+    && dreamGame.my > dreamGame.op
+    && runStats?.marginScore != null
+    && !leaderboardSubmitted
+    && !hallSkipped;
+
+  const submitHallEntry = async () => {
+    if (!runStats || runStats.marginScore == null || runStats.dreamMargin == null) return;
+    const nickCheck = validateNick(hallNick);
+    if (!nickCheck.ok) {
+      setHallError(nickCheck.error);
+      return;
+    }
+    const nick = nickCheck.nick;
+    setHallSubmitting(true);
+    setHallError(null);
+    try {
+      const res = await fetch("/api/leaderboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nick,
+          country: hallCountry,
+          score: runStats.marginScore,
+          tournamentMargins: runStats.margins,
+          dreamMargin: runStats.dreamMargin,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not submit.");
+      setLeaderboardSubmitted(true);
+      setHallToast("Spot claimed.");
+      setTimeout(() => setHallToast(null), 2800);
+    } catch (err) {
+      setHallError(err.message || "Could not submit.");
+    } finally {
+      setHallSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (screen !== "leaderboard") return;
+    let cancelled = false;
+    setLbLoading(true);
+    setLbError(null);
+    fetch("/api/leaderboard")
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not load Hall of Fame.");
+        return data;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setLbEntries(Array.isArray(data.entries) ? data.entries : []);
+      })
+      .catch((err) => {
+        if (!cancelled) setLbError(err.message || "Could not load Hall of Fame.");
+      })
+      .finally(() => {
+        if (!cancelled) setLbLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [screen]);
 
 
 
   return (
     <div className="ps-root pb-10">
       <style>{css}</style>
+
+      {hallToast && (
+        <div
+          className="fixed left-1/2 z-50 pop px-4 py-2 dsp text-sm"
+          style={{
+            top: 72, transform: "translateX(-50%)",
+            background: "#1a2336", border: "1px solid #2f3d5c", color: "#7ee2a8",
+            boxShadow: "0 8px 28px rgba(0,0,0,.45)",
+          }}
+        >
+          {hallToast}
+        </div>
+      )}
+
+      {showHallModal && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center px-4"
+          style={{ background: "rgba(6,8,14,.72)", backdropFilter: "blur(4px)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="hall-title"
+        >
+          <div className="panel p-5 w-full max-w-md pop" style={{ background: "#121826" }}>
+            <div className="eyebrow mb-1" style={{ color: "#E8465A" }}>HALL OF FAME</div>
+            <h2
+              id="hall-title"
+              className="dsp text-2xl mb-1.5"
+              style={{ color: "#EAF0F7", textWrap: "balance" }}
+            >
+              Claim your spot
+            </h2>
+            <p className="text-sm mb-4 leading-relaxed" style={{ color: "#93a1b5", textWrap: "pretty" }}>
+              8–0 and you beat the Dream Team. Sign in with your margin score.
+            </p>
+            <div className="mb-4 text-center py-1">
+              <div className="eyebrow mb-1" style={{ color: "#7d8ba0" }}>MARGIN SCORE</div>
+              <div
+                className="dsp9 text-5xl"
+                style={{ color: "#7ee2a8", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}
+              >
+                {runStats.marginScore}
+              </div>
+            </div>
+            <label className="block mb-3">
+              <span className="eyebrow block mb-1.5" style={{ color: "#7d8ba0" }}>NICKNAME</span>
+              <input
+                type="text"
+                value={hallNick}
+                maxLength={16}
+                autoComplete="off"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setHallNick(v);
+                  if (!v.trim()) {
+                    setHallError(null);
+                    return;
+                  }
+                  const check = validateNick(v);
+                  setHallError(check.ok ? null : check.error);
+                }}
+                className="w-full px-3 py-2.5 text-sm"
+                style={fieldChrome}
+                placeholder="2–16 characters"
+              />
+            </label>
+            <label className="block mb-4">
+              <span className="eyebrow block mb-1.5" style={{ color: "#7d8ba0" }}>COUNTRY</span>
+              <CountryCombobox value={hallCountry} onChange={setHallCountry} />
+            </label>
+            {hallError && (
+              <p className="text-sm mb-3" style={{ color: "#ff8b98" }}>{hallError}</p>
+            )}
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={hallSubmitting || !!hallError || !hallNick.trim()}
+                onClick={submitHallEntry}
+                className={`skew dsp9 text-lg px-6 py-3 w-full ${
+                  hallSubmitting || hallError || !hallNick.trim() ? "chip btnDead" : "btnP"
+                }`}
+              >
+                <span className="unskew">{hallSubmitting ? "CLAIMING…" : "CLAIM SPOT"}</span>
+              </button>
+              <button
+                type="button"
+                disabled={hallSubmitting}
+                onClick={() => setHallSkipped(true)}
+                className="skew chip dsp px-6 py-2.5 btnG w-full"
+              >
+                <span className="unskew">NOT NOW</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== top bar ===== */}
       <div className="flex items-center justify-center px-5 py-3 relative"
@@ -1909,7 +2458,7 @@ export default function PerfectSweep() {
           </div>
           <div className="dsp text-lg" style={{ color: "#EAF0F7" }}>PERFECT SWEEP</div>
         </div>
-        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2">FIBA WORLD CUP · 1950—2023</div>
+        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2">FIBA WORLD CUP · 1986—2023</div>
       </div>
       {/* accent strips */}
       <div style={{ height: 3, background: "linear-gradient(90deg,#E8465A 0%,#E8465A 30%,#23b4e2 30%,#23b4e2 33%,transparent 33%)" }} />
@@ -1977,17 +2526,34 @@ export default function PerfectSweep() {
               })}
             </div>
             {/* tactic */}
-            <div className="flex flex-wrap items-center gap-2 mt-4">
-              <span className="eyebrow mr-1">TACTIC</span>
-              <div className="skew segCtrl flex-1 min-w-[260px] max-w-md">
-                {STYLES.map((st) => (
-                  <button key={st.id} onClick={() => setStyle(st)} title={st.tip}
-                    className={`dsp text-xs sm:text-sm ${style.id === st.id ? "active" : ""}`}>
-                    <span className="unskew whitespace-nowrap">{st.label}</span>
-                    <span className="segTip" aria-hidden="true">{st.tip}</span>
-                  </button>
-                ))}
+            <div className="mt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="eyebrow mr-1">TACTIC</span>
+                <div className="skew segCtrl flex-1 min-w-[260px] max-w-md">
+                  {STYLES.map((st) => (
+                    <button key={st.id} onClick={() => setStyle(st)} title={st.tip}
+                      className={`dsp text-xs sm:text-sm ${style.id === st.id ? "active" : ""}`}>
+                      <span className="unskew whitespace-nowrap">{st.label}</span>
+                      <span className="segTip" aria-hidden="true">{st.tip}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
+              {(() => {
+                const fit = styleFitHint(style, lineup);
+                if (!fit) return null;
+                return (
+                  <div key={`${style.id}-${fit.detail}`}
+                    className={`skew chip fitChip ${fit.tone}`}
+                    role="status">
+                    <span className="unskew inline-flex items-center">
+                      <span className="fitChipLabel">{fit.label}</span>
+                      <span className="fitChipSep" aria-hidden="true">·</span>
+                      <span className="fitChipDetail">{fit.detail}</span>
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -2176,12 +2742,17 @@ export default function PerfectSweep() {
                     <span className="dsp9 text-lg" style={{ color: "#fff" }}>{g.opp.name.toUpperCase()} '{g.opp.season.slice(2)}</span>
                   </div>
                 </div>
-                <div className="flex justify-between px-4 py-1.5 text-[11px]" style={{ color: "#5f6b7d" }}>
-                  <span>Q {g.myQ.join(" · ")}{g.otMy?.length ? ` · OT ${g.otMy.join(" · ")}` : ""}</span>
-                  <span className="dsp" style={{ color: "#93a1b5" }}>
+                <div className="px-4 py-2.5" style={{ borderTop: "1px solid #1c2333" }}>
+                  <QuarterByQ
+                    myQ={g.myQ}
+                    opQ={g.opQ}
+                    otMy={g.otMy}
+                    otOp={g.otOp}
+                    opColor={oppColor(g.opp)}
+                  />
+                  <div className="dsp mt-2 text-[11px] truncate" style={{ color: "#93a1b5" }}>
                     {g.box.slice(0, 3).map((p) => `${p.name} ${p.pts}`).join("  ·  ")}
-                  </span>
-                  <span>Q {g.opQ.join(" · ")}{g.otOp?.length ? ` · OT ${g.otOp.join(" · ")}` : ""}</span>
+                  </div>
                 </div>
                 {g.story && (
                   <div className="px-4 py-2.5 text-sm" style={{
@@ -2503,8 +3074,398 @@ export default function PerfectSweep() {
         </div>
       )}
 
-      <div className="text-center eyebrow py-6">
-        PERFECT SWEEP · WORLD CUP EDITION
+      {/* ============ TEAMS INDEX ============ */}
+      {screen === "teams" && (
+        <div className="max-w-3xl mx-auto px-4 py-6 pop">
+          <div className="flex items-center gap-2 mb-4">
+            <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
+              <span className="unskew">← HOME</span>
+            </button>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · ARCHIVE</div>
+          </div>
+          <div className="panel p-5 mb-4">
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#232b3d" }}>
+              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>THE TEAMS</h1>
+              <div className="eyebrow" style={{ color: "#93a1b5" }}>
+                {NATIONS_ARCHIVE.length} NATIONS · {TEAMS.length} SQUADS
+              </div>
+            </div>
+            <p className="mt-4 text-sm" style={{ color: "#93a1b5" }}>
+              Every nation in the draft pool — powerhouses, dark horses, and defunct federations.
+              Pick a country to see its World Cup squads year by year.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {NATIONS_ARCHIVE.map((n) => (
+              <button
+                key={n.name}
+                type="button"
+                onClick={() => openNation(n.name)}
+                className="panel px-4 py-3 text-left flex items-center justify-between gap-3 transition-colors"
+                style={{ borderLeft: `3px solid ${n.c}` }}
+              >
+                <span className="dsp text-base" style={{ color: "#EAF0F7" }}>{n.name}</span>
+                <span className="eyebrow shrink-0" style={{ color: "#7d8ba0" }}>
+                  {n.squads.length} SQUAD{n.squads.length !== 1 ? "S" : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ============ NATION DETAIL ============ */}
+      {screen === "team" && !browseNationData && (
+        <div className="max-w-3xl mx-auto px-4 py-12 text-center pop">
+          <div className="eyebrow mb-3" style={{ color: "#f08a8a" }}>NATION NOT FOUND</div>
+          <button onClick={openTeams} className="btnP skew dsp9 text-lg px-8 py-3">
+            <span className="unskew">← BACK TO TEAMS</span>
+          </button>
+        </div>
+      )}
+
+      {screen === "team" && browseNationData && (
+        <div className="max-w-3xl mx-auto px-4 py-6 pop">
+          <div className="flex items-center gap-2 mb-4">
+            <button onClick={openTeams} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
+              <span className="unskew">← TEAMS</span>
+            </button>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · TEAM</div>
+          </div>
+          <div className="panel p-5 mb-4" style={{ borderTop: `3px solid ${browseNationData.c}` }}>
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#232b3d" }}>
+              <h1 className="dsp9 text-3xl sm:text-4xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>
+                {browseNationData.name.toUpperCase()}
+              </h1>
+              <div className="eyebrow" style={{ color: "#93a1b5" }}>
+                {browseNationData.squads.length} SQUAD{browseNationData.squads.length !== 1 ? "S" : ""} ·{" "}
+                {browseNationData.squads[browseNationData.squads.length - 1].season}–{browseNationData.squads[0].season}
+              </div>
+            </div>
+            <p className="mt-4 text-sm" style={{ color: "#93a1b5" }}>
+              Draftable World Cup squads for {browseNationData.name} in the Perfect Sweep pool.
+              Ratings and traits match what you can roll in-game.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {browseNationData.squads.map((squad) => (
+              <div key={squad.season} className="panel">
+                <div className="flex items-center justify-between gap-3 px-4 py-3"
+                  style={{
+                    background: `linear-gradient(90deg, ${squad.c}22, transparent)`,
+                    borderBottom: "1px solid #1c2333",
+                    borderRadius: "inherit",
+                  }}>
+                  <div>
+                    <div className="eyebrow" style={{ color: "#93a1b5" }}>WORLD CUP</div>
+                    <div className="dsp9 text-2xl" style={{ color: "#fff" }}>{squad.season}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="eyebrow">OVR</span>
+                    <Gem rt={Math.round(teamRating(squad))} size={40} />
+                  </div>
+                </div>
+                <div>
+                  {squad.players.map((p) => (
+                    <div key={`${p.n}-${p.name}`} className="flex items-center gap-3 px-4 py-2 relative"
+                      style={{ borderTop: "1px solid #1c2333", overflow: "visible" }}>
+                      <Gem rt={p.rt} size={32} />
+                      <div className="flex-1 min-w-0 relative" style={{ overflow: "visible" }}>
+                        <div className="dsp text-sm truncate" style={{ color: "#fff" }}>
+                          {p.pos} · #{p.n} {p.name}
+                        </div>
+                        {playerTraits(p).map((id) => (
+                          <TraitLabel key={id} traitId={id} />
+                        ))}
+                      </div>
+                      <div className="eyebrow" style={{ color: "#5f6b7d" }}>{p.rt}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ============ HOW TO PLAY ============ */}
+      {screen === "howto" && (
+        <div className="max-w-3xl mx-auto px-4 py-6 pop">
+          <div className="flex items-center gap-2 mb-4">
+            <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
+              <span className="unskew">← HOME</span>
+            </button>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · GUIDE</div>
+          </div>
+
+          <div className="panel p-5 mb-4">
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#232b3d" }}>
+              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>HOW TO PLAY</h1>
+              <div className="eyebrow" style={{ color: "#93a1b5" }}>ROLL · DRAFT · SWEEP</div>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              Perfect Sweep is a basketball drafting game: build a dream national five from legendary
+              World Cup squads, then simulate a full tournament. The ultimate mark is the{" "}
+              <b style={{ color: "#ff8b98" }}>Perfect Sweep — 8–0</b>: win the Cup without losing a single game.
+            </p>
+          </div>
+
+          <div className="panel p-5 mb-3">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>1 · THE DRAFT</h2>
+            <p className="text-sm leading-relaxed mb-3" style={{ color: "#93a1b5" }}>
+              Tip off and roll. Each roll draws a historic national squad — USA &apos;94, Spain &apos;06, Slovenia &apos;23.
+              From that squad you sign <b style={{ color: "#c6d2e3" }}>one player</b> into an empty slot
+              (PG / SG / SF / PF / C). Then roll again until your five is set.
+            </p>
+            <ul className="text-sm leading-relaxed space-y-2" style={{ color: "#c6d2e3" }}>
+              <li><b style={{ color: "#ff8b98" }}>Roll</b> — draw a new nation and year to pick from.</li>
+              <li><b style={{ color: "#ff8b98" }}>Swaps</b> — twice per run you can switch nation (same year) or year (same nation).</li>
+              <li><b style={{ color: "#ff8b98" }}>Tactic</b> — Run &amp; Gun, Balanced, or Lockdown, trading pace, offense, and defense.</li>
+            </ul>
+          </div>
+
+          <div className="panel p-5 mb-3">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>2 · THE WORLD CUP</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              With your five locked, you play eight games: three group games, two second-round games,
+              then quarterfinal, semifinal, and the Final. Group stages use a real table — finish outside
+              the top two and you&apos;re out even with a win left on the board. Knockouts are win or go home.
+              Every game is simulated live with quarters, box scores, and optional play-by-play.
+            </p>
+          </div>
+
+          <div className="panel p-5 mb-3">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>3 · THE PERFECT SWEEP</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              Win the Final and you&apos;re <b style={{ color: "#c6d2e3" }}>World Champions</b> — even if you dropped
+              a group game or two along the way. Go through all eight without a single loss and you&apos;ve
+              earned the <b style={{ color: "#7ee2a8" }}>Perfect Sweep</b>. That unlocks a bonus game against
+              the 1992 Dream Team. A loss anywhere before the Final kills the sweep, but not necessarily the Cup.
+            </p>
+          </div>
+
+          <div className="panel p-5 mb-3">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>4 · TRAITS</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              Some legends carry traits — green boosts or red risks — that can fire mid-game and swing a quarter.
+              Hover a trait in the{" "}
+              <button type="button" onClick={openTeams} className="underline" style={{ color: "#ff8b98" }}>
+                TEAMS
+              </button>
+              {" "}archive to see what it does before you draft.
+            </p>
+          </div>
+
+          <div className="panel p-5 mb-5">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>5 · SHARE YOUR RUN</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              When the tournament ends, open your Tournament Card and copy the link. Anyone with the URL
+              can see your five, the path you took, and whether the Perfect Sweep held.
+            </p>
+          </div>
+
+          <button
+            className="btnP skew dsp9 text-xl px-10 py-3.5 w-full sm:w-auto"
+            onClick={() => { reset(); roll(); setScreen("draft"); }}
+          >
+            <span className="unskew">TIP OFF<BtnArrow /></span>
+          </button>
+        </div>
+      )}
+
+      {/* ============ ABOUT ============ */}
+      {screen === "about" && (
+        <div className="max-w-3xl mx-auto px-4 py-6 pop">
+          <div className="flex items-center gap-2 mb-4">
+            <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
+              <span className="unskew">← HOME</span>
+            </button>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · ABOUT</div>
+          </div>
+
+          <div className="panel p-5 mb-4">
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#232b3d" }}>
+              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>ABOUT</h1>
+              <div className="eyebrow" style={{ color: "#93a1b5" }}>8–0 · THE MARK</div>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              Perfect Sweep brings legendary FIBA World Cup national squads into one drafting gauntlet.
+              You roll nations across eras, build a dream five that never shared a locker room, and chase
+              the rarest finish in the tournament: win the Cup without losing a single game.
+            </p>
+          </div>
+
+          <div className="panel p-5 mb-3">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>THE IDEA</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              It started from a simple thought: what if Sabonis of &apos;86 could share the floor with Luka of &apos;23?
+              Perfect Sweep turns that into a run — roll a squad, sign one star per position, pick a tactic,
+              and simulate an eight-game World Cup path. Lift the trophy with losses along the way and you&apos;re
+              still World Champions. Go undefeated — 8–0 — and you&apos;ve earned the Perfect Sweep, plus a bonus
+              tip-off against the 1992 Dream Team.
+            </p>
+          </div>
+
+          <div className="panel p-5 mb-3">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>THE ARCHIVE</h2>
+            <p className="text-sm mb-3" style={{ color: "#93a1b5" }}>
+              Behind every roll is a curated pool of World Cup basketball:
+            </p>
+            <ul className="text-sm leading-relaxed space-y-2" style={{ color: "#c6d2e3" }}>
+              <li>
+                <b style={{ color: "#ff8b98" }}>{ARCHIVE_STATS.nations} nations</b>
+                {" "}in the draft pool — from powerhouses to dark horses, including defunct sides like
+                the Soviet Union and Yugoslavia.
+              </li>
+              <li>
+                <b style={{ color: "#ff8b98" }}>{ARCHIVE_STATS.years.count} World Cups</b>
+                {" "}represented, from {ARCHIVE_STATS.years.first} to {ARCHIVE_STATS.years.last},
+                with every podium squad from that modern era playable.
+              </li>
+              <li>
+                <b style={{ color: "#ff8b98" }}>{ARCHIVE_STATS.squads} squads</b>
+                {" "}and{" "}
+                <b style={{ color: "#ff8b98" }}>{ARCHIVE_STATS.players} players</b>
+                , each with a position, number, and 2K-style rating
+                {ARCHIVE_STATS.traits > 0 ? (
+                  <> — plus {ARCHIVE_STATS.traits} with gameplay traits that can swing a quarter</>
+                ) : null}.
+              </li>
+            </ul>
+            <p className="text-sm mt-3 leading-relaxed" style={{ color: "#93a1b5" }}>
+              Browse the full list anytime from{" "}
+              <button type="button" onClick={openTeams} className="underline" style={{ color: "#ff8b98" }}>
+                TEAMS
+              </button>
+              .
+            </p>
+          </div>
+
+          <div className="panel p-5 mb-3">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>HOW PLAYERS ARE RATED</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              Each player carries a rating that feeds the sim, shown as a gem on the draft board.
+              Ratings are subjective by nature — they aim to capture a player&apos;s level in that specific
+              World Cup, not their full career peak. Some stars also carry traits (boosts or risks) that
+              can fire mid-game and rewrite a quarter.
+            </p>
+          </div>
+
+          <div className="panel p-5 mb-5">
+            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>FREE AND NO CATCH</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+              Perfect Sweep is free to play. No account, no paywall — tip off, draft, and share a finished
+              run with a link. The Perfect Sweep is rare on purpose. That&apos;s the point.
+            </p>
+          </div>
+
+          <button
+            className="btnP skew dsp9 text-xl px-10 py-3.5 w-full sm:w-auto"
+            onClick={() => { reset(); roll(); setScreen("draft"); }}
+          >
+            <span className="unskew">TIP OFF<BtnArrow /></span>
+          </button>
+        </div>
+      )}
+
+      {/* ============ HALL OF FAME ============ */}
+      {screen === "leaderboard" && (
+        <div className="max-w-3xl mx-auto px-4 py-6 pop">
+          <div className="flex items-center gap-2 mb-4">
+            <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
+              <span className="unskew">← HOME</span>
+            </button>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · HALL OF FAME</div>
+          </div>
+
+          <div className="mb-5 text-center">
+            <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>HALL OF FAME</h1>
+            <p className="mt-3 text-sm max-w-lg mx-auto" style={{ color: "#93a1b5" }}>
+              Reserved for Perfect Sweep + Dream Team conquerors. Score = sum of margins.
+            </p>
+          </div>
+
+          {lbLoading && (
+            <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>Loading…</div>
+          )}
+          {!lbLoading && lbError && (
+            <div className="panel p-6 text-center text-sm" style={{ color: "#ff8b98" }}>{lbError}</div>
+          )}
+          {!lbLoading && !lbError && lbEntries.length === 0 && (
+            <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>
+              No entries yet. Go undefeated, beat the Dream Team, and claim the first spot.
+            </div>
+          )}
+          {!lbLoading && !lbError && lbEntries.length > 0 && (
+            <div className="panel overflow-hidden">
+              <div
+                className="grid gap-2 px-4 py-2 eyebrow"
+                style={{ gridTemplateColumns: "2.5rem 1fr 1fr 4rem", color: "#7d8ba0", borderBottom: "1px solid #232b3d" }}
+              >
+                <span>#</span>
+                <span>NICK</span>
+                <span>COUNTRY</span>
+                <span className="text-right">SCORE</span>
+              </div>
+              {lbEntries.map((e) => {
+                const c = countryByCode(e.country);
+                return (
+                  <div
+                    key={`${e.rank}-${e.nick}-${e.score}`}
+                    className="grid gap-2 px-4 py-3 items-center text-sm"
+                    style={{ gridTemplateColumns: "2.5rem 1fr 1fr 4rem", borderBottom: "1px solid #1a2233" }}
+                  >
+                    <span className="dsp9" style={{ color: e.rank <= 3 ? "#E8465A" : "#7d8ba0" }}>{e.rank}</span>
+                    <span className="dsp truncate" style={{ color: "#EAF0F7" }}>{e.nick}</span>
+                    <span style={{ color: "#c6d2e3" }}>
+                      <span className="mr-1.5" aria-hidden>{c?.flag || "🌍"}</span>
+                      {c?.name || e.country}
+                    </span>
+                    <span className="dsp9 text-right" style={{ color: "#7ee2a8" }}>{e.score}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="text-center eyebrow py-6 flex items-center justify-center gap-3 flex-wrap">
+        <button
+          type="button"
+          onClick={openTeams}
+          className="eyebrow cursor-pointer"
+          style={{ color: screen === "teams" || screen === "team" ? "#ff8b98" : "#93a1b5", letterSpacing: "inherit" }}
+        >
+          TEAMS
+        </button>
+        <span style={{ color: "#3d486c" }}>·</span>
+        <button
+          type="button"
+          onClick={openHowTo}
+          className="eyebrow cursor-pointer"
+          style={{ color: screen === "howto" ? "#ff8b98" : "#93a1b5", letterSpacing: "inherit" }}
+        >
+          HOW TO PLAY
+        </button>
+        <span style={{ color: "#3d486c" }}>·</span>
+        <button
+          type="button"
+          onClick={openLeaderboard}
+          className="eyebrow cursor-pointer"
+          style={{ color: screen === "leaderboard" ? "#ff8b98" : "#93a1b5", letterSpacing: "inherit" }}
+        >
+          HALL OF FAME
+        </button>
+        <span style={{ color: "#3d486c" }}>·</span>
+        <button
+          type="button"
+          onClick={openAbout}
+          className="eyebrow cursor-pointer"
+          style={{ color: screen === "about" ? "#ff8b98" : "#93a1b5", letterSpacing: "inherit" }}
+        >
+          ABOUT
+        </button>
       </div>
     </div>
   );

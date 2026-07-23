@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hall of Fame preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:ital,wght@0,500;0,700;0,800;1,700;1,800;1,900&family=Saira:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .ps-root{font-family:'Saira',sans-serif;color:#EAF0F7;min-height:100vh;position:relative;
+      background:
+        radial-gradient(1000px 420px at 50% -120px, rgba(232,70,90,.18), transparent 60%),
+        radial-gradient(800px 500px at 90% 110%, rgba(35,180,226,.10), transparent 60%),
+        linear-gradient(180deg,#0b0e15 0%, #0a0c12 100%);}
+    .ps-root::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
+      background:repeating-linear-gradient(115deg, rgba(255,255,255,.016) 0 2px, transparent 2px 90px);}
+    .dsp{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
+      text-transform:uppercase;letter-spacing:.02em;}
+    .dsp9{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
+      text-transform:uppercase;letter-spacing:.01em;}
+    .eyebrow{font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+      letter-spacing:.28em;font-size:11px;color:#5f6b7d;}
+    .panel{background:linear-gradient(180deg,#141926 0%,#10141f 100%);
+      border:1px solid #232b3d;border-top:2px solid #2c3650;
+      clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);}
+    .chip{clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);}
+    .skew{transform:skewX(-8deg);}
+    .unskew{transform:skewX(8deg);display:inline-block;}
+    .btnG{background:#1a2132;color:#c6d2e3;border:1px solid #303c56;padding:.375rem .75rem;font-size:.875rem;cursor:pointer;}
+    .topbar{display:flex;align-items:center;justify-content:center;padding:.75rem 1.25rem;
+      background:linear-gradient(180deg,#131826,#0e1219);border-bottom:1px solid #232b3d;}
+    .badge{background:#E8465A;color:#fff;padding:.25rem .75rem;font-size:1.125rem;}
+    .wrap{max-width:48rem;margin:0 auto;padding:1.5rem 1rem;}
+    .row-head,.row{display:grid;grid-template-columns:2.5rem 1fr 1fr 4rem;gap:.5rem;align-items:center;padding:.75rem 1rem;}
+    .row-head{padding:.5rem 1rem;border-bottom:1px solid #232b3d;color:#7d8ba0;}
+    .row{font-size:.875rem;border-bottom:1px solid #1a2233;}
+    .footer{text-align:center;padding:1.5rem;letter-spacing:.28em;font-size:11px;color:#93a1b5;}
+  </style>
+</head>
+<body>
+  <div class="ps-root">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:.75rem;">
+        <div class="skew chip badge dsp9"><span class="unskew">8–0</span></div>
+        <div class="dsp" style="font-size:1.125rem;">PERFECT SWEEP</div>
+      </div>
+    </div>
+    <div style="height:3px;background:linear-gradient(90deg,#E8465A 0%,#E8465A 30%,#23b4e2 30%,#23b4e2 33%,transparent 33%)"></div>
+
+    <div class="wrap">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
+        <button class="skew chip dsp btnG"><span class="unskew">← HOME</span></button>
+        <div class="eyebrow" style="flex:1;text-align:center;color:#E8465A;">PERFECT SWEEP · HALL OF FAME</div>
+      </div>
+
+      <div style="margin-bottom:1.25rem;text-align:center;">
+        <h1 class="dsp9" style="font-size:clamp(2.25rem,8vw,3rem);margin:0;line-height:.95;color:#EAF0F7;">HALL OF FAME</h1>
+        <p style="margin:.75rem auto 0;max-width:28rem;font-size:.875rem;color:#93a1b5;">
+          Reserved for Perfect Sweep + Dream Team conquerors. Score = sum of margins.
+        </p>
+      </div>
+
+      <div class="panel" style="overflow:hidden;">
+        <div class="row-head eyebrow">
+          <span>#</span>
+          <span>NICK</span>
+          <span>COUNTRY</span>
+          <span style="text-align:right;">SCORE</span>
+        </div>
+        <div class="row">
+          <span class="dsp9" style="color:#E8465A;">1</span>
+          <span class="dsp" style="color:#EAF0F7;">Martin</span>
+          <span style="color:#c6d2e3;"><span style="margin-right:.375rem;">🇨🇿</span>Czech Republic</span>
+          <span class="dsp9" style="text-align:right;color:#7ee2a8;">147</span>
+        </div>
+        <div class="row">
+          <span class="dsp9" style="color:#E8465A;">2</span>
+          <span class="dsp" style="color:#EAF0F7;">GasolFan</span>
+          <span style="color:#c6d2e3;"><span style="margin-right:.375rem;">🇪🇸</span>Spain</span>
+          <span class="dsp9" style="text-align:right;color:#7ee2a8;">132</span>
+        </div>
+        <div class="row">
+          <span class="dsp9" style="color:#E8465A;">3</span>
+          <span class="dsp" style="color:#EAF0F7;">ManuRun</span>
+          <span style="color:#c6d2e3;"><span style="margin-right:.375rem;">🇦🇷</span>Argentina</span>
+          <span class="dsp9" style="text-align:right;color:#7ee2a8;">118</span>
+        </div>
+        <div class="row">
+          <span class="dsp9" style="color:#7d8ba0;">4</span>
+          <span class="dsp" style="color:#EAF0F7;">Sabas</span>
+          <span style="color:#c6d2e3;"><span style="margin-right:.375rem;">🇱🇹</span>Lithuania</span>
+          <span class="dsp9" style="text-align:right;color:#7ee2a8;">101</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer eyebrow">
+      TEAMS · HOW TO PLAY · <span style="color:#ff8b98;">HALL OF FAME</span> · ABOUT
+    </div>
+  </div>
+</body>
+</html>
