@@ -208,6 +208,235 @@ const TEAMS = [
     { n: 7, name: "Sean Marks", pos: "C", rt: 78 }, { n: 10, name: "Kirk Penney", pos: "SF", rt: 78 },
     { n: 4, name: "P. Henare", pos: "PG", rt: 75 }, { n: 8, name: "D. Boucher", pos: "PF", rt: 74 },
   ]},
+  /* --- curated gaps: notable WC nations still missing from the draft pool --- */
+  { name: "Dominican Republic", season: "2023", c: "#002D62", alt: "#CE1126", players: [
+    { n: 32, name: "K.A. Towns", pos: "C", rt: 92, trait: "theTower" }, { n: 3, name: "Andrés Feliz", pos: "PG", rt: 80 },
+    { n: 11, name: "Angel Delgado", pos: "PF", rt: 81 }, { n: 9, name: "Jean Montero", pos: "SG", rt: 79 },
+    { n: 5, name: "Victor Liz", pos: "SF", rt: 77 }, { n: 25, name: "Lester Quiñones", pos: "SG", rt: 76 },
+  ]},
+  { name: "Philippines", season: "2023", c: "#0038A8", alt: "#CE1126", players: [
+    { n: 6, name: "Jordan Clarkson", pos: "SG", rt: 88, trait: "flameThrower" }, { n: 15, name: "Kai Sotto", pos: "C", rt: 80 },
+    { n: 1, name: "June Mar Fajardo", pos: "PF", rt: 79 }, { n: 7, name: "Dwight Ramos", pos: "SF", rt: 78 },
+    { n: 4, name: "Kiefer Ravena", pos: "PG", rt: 77 }, { n: 23, name: "Japeth Aguilar", pos: "PF", rt: 76 },
+  ]},
+  { name: "Finland", season: "2023", c: "#002F6C", alt: "#FFFFFF", players: [
+    { n: 23, name: "Lauri Markkanen", pos: "PF", rt: 91, trait: "unicorn" }, { n: 7, name: "Sasu Salin", pos: "SG", rt: 79 },
+    { n: 18, name: "Mikael Jantunen", pos: "SF", rt: 78 }, { n: 9, name: "Edon Maxhuni", pos: "PG", rt: 77 },
+    { n: 11, name: "Alexander Madsen", pos: "C", rt: 77 }, { n: 21, name: "Shawn Huff", pos: "SF", rt: 75 },
+  ]},
+  { name: "South Sudan", season: "2023", c: "#0F47AF", alt: "#FC0119", players: [
+    { n: 0, name: "Carlik Jones", pos: "PG", rt: 84, trait: "chaosEnergy" }, { n: 32, name: "Wenyen Gabriel", pos: "PF", rt: 80 },
+    { n: 9, name: "Marial Shayok", pos: "SG", rt: 79 }, { n: 14, name: "Mangok Mathiang", pos: "C", rt: 78 },
+    { n: 5, name: "Nuni Omot", pos: "SF", rt: 77 }, { n: 11, name: "JT Thor", pos: "PF", rt: 76 },
+  ]},
+  { name: "Montenegro", season: "2023", c: "#C40308", alt: "#FFC72C", players: [
+    { n: 9, name: "Nikola Vučević", pos: "C", rt: 88, trait: "connector" }, { n: 11, name: "B. Dubljević", pos: "PF", rt: 81 },
+    { n: 4, name: "N. Ivanović", pos: "PG", rt: 79 }, { n: 7, name: "D. Simonović", pos: "SG", rt: 77 },
+    { n: 14, name: "M. Popović", pos: "SF", rt: 76 }, { n: 19, name: "M. Radončić", pos: "PF", rt: 75 },
+  ]},
+  { name: "Iran", season: "2014", c: "#239F40", alt: "#DA0000", players: [
+    { n: 15, name: "Hamed Haddadi", pos: "C", rt: 87, trait: "greatWall" }, { n: 7, name: "S. Nikkhah Bahrami", pos: "SF", rt: 81 },
+    { n: 5, name: "Mehdi Kamrani", pos: "PG", rt: 79 }, { n: 8, name: "O. Hassanzadeh", pos: "SG", rt: 77 },
+    { n: 12, name: "A. Davari", pos: "PF", rt: 76 }, { n: 14, name: "A. Kazemi", pos: "PF", rt: 75 },
+  ]},
+  { name: "Georgia", season: "2023", c: "#FFFFFF", alt: "#FF0000", players: [
+    { n: 23, name: "T. Shengelia", pos: "PF", rt: 87, trait: "mrImportant" }, { n: 4, name: "T. McFadden", pos: "SG", rt: 81 },
+    { n: 8, name: "B. Bitadze", pos: "C", rt: 82 }, { n: 11, name: "S. Mamukelashvili", pos: "SF", rt: 78 },
+    { n: 5, name: "T. Pkhakadze", pos: "PG", rt: 76 }, { n: 9, name: "G. Shermadini", pos: "C", rt: 80 },
+  ]},
+  { name: "Cape Verde", season: "2023", c: "#003893", alt: "#CF2027", players: [
+    { n: 22, name: "Edy Tavares", pos: "C", rt: 88, trait: "foulTrouble" }, { n: 5, name: "I. Almeida", pos: "PG", rt: 78 },
+    { n: 8, name: "W. Mendes", pos: "SF", rt: 77 }, { n: 11, name: "B. da Rosa", pos: "SG", rt: 76 },
+    { n: 14, name: "K. Correia", pos: "PF", rt: 75 }, { n: 7, name: "P. Abreu", pos: "SG", rt: 74 },
+  ]},
+  { name: "Jordan", season: "2023", c: "#000000", alt: "#CE1126", players: [
+    { n: 24, name: "R. Hollis-Jefferson", pos: "SF", rt: 84, trait: "chaosEnergy" }, { n: 9, name: "A. Tucker", pos: "SG", rt: 79 },
+    { n: 5, name: "F. Alnajjar", pos: "PG", rt: 76 }, { n: 15, name: "A. Abu Hawwas", pos: "PF", rt: 76 },
+    { n: 21, name: "A. Ibrahim", pos: "C", rt: 75 }, { n: 8, name: "Z. Al Dwairi", pos: "PF", rt: 74 },
+  ]},
+  { name: "Venezuela", season: "2019", c: "#FFCC00", alt: "#CF144C", players: [
+    { n: 14, name: "G. Vásquez", pos: "PG", rt: 82 }, { n: 6, name: "J. Vargas", pos: "SG", rt: 79 },
+    { n: 15, name: "N. Colmenares", pos: "PF", rt: 78 }, { n: 4, name: "G. Cox", pos: "SF", rt: 77 },
+    { n: 12, name: "W. Guillen", pos: "C", rt: 76 }, { n: 8, name: "H. Carrera", pos: "SG", rt: 75 },
+  ]},
+  { name: "Mexico", season: "2014", c: "#006847", alt: "#CE1126", players: [
+    { n: 14, name: "Gustavo Ayón", pos: "C", rt: 84, trait: "connector" }, { n: 9, name: "J. Gutiérrez", pos: "PG", rt: 79 },
+    { n: 6, name: "O. Méndez", pos: "SG", rt: 77 }, { n: 15, name: "H. Hernández", pos: "PF", rt: 76 },
+    { n: 5, name: "P. Stoll", pos: "SG", rt: 76 }, { n: 11, name: "I. Ramos", pos: "SF", rt: 75 },
+  ]},
+  { name: "Poland", season: "2019", c: "#FFFFFF", alt: "#DC143C", players: [
+    { n: 5, name: "A. Waczyński", pos: "SG", rt: 81 }, { n: 3, name: "M. Ponitka", pos: "SF", rt: 82 },
+    { n: 34, name: "A. Hrycaniuk", pos: "C", rt: 77 }, { n: 6, name: "Ł. Koszarek", pos: "PG", rt: 78 },
+    { n: 9, name: "D. Slaughter", pos: "PF", rt: 79 }, { n: 15, name: "K. Kulig", pos: "PF", rt: 75 },
+  ]},
+  { name: "Senegal", season: "2019", c: "#00853F", alt: "#FDEF42", players: [
+    { n: 14, name: "Gorgui Dieng", pos: "C", rt: 84 }, { n: 5, name: "M. Faye", pos: "SG", rt: 78 },
+    { n: 8, name: "X. Rathan-Mayes", pos: "PG", rt: 79 }, { n: 12, name: "M. Ndoye", pos: "SF", rt: 76 },
+    { n: 15, name: "Y. Ndoye", pos: "PF", rt: 77 }, { n: 7, name: "B. Dalmeida", pos: "SG", rt: 74 },
+  ]},
+  { name: "Lebanon", season: "2006", c: "#EE161F", alt: "#FFFFFF", players: [
+    { n: 10, name: "Fadi El Khatib", pos: "SF", rt: 85, trait: "fibaLegend" }, { n: 4, name: "R. El Hindi", pos: "PG", rt: 77 },
+    { n: 14, name: "J. Abdelnour", pos: "SG", rt: 76 }, { n: 12, name: "W. Fahed", pos: "C", rt: 78 },
+    { n: 8, name: "A. Bawji", pos: "PF", rt: 75 }, { n: 6, name: "N. El Hage", pos: "SG", rt: 74 },
+  ]},
+  { name: "South Korea", season: "2014", c: "#0047A0", alt: "#CD2E3A", players: [
+    { n: 10, name: "Moon Tae-jong", pos: "SF", rt: 80 }, { n: 6, name: "Kim Tae-sul", pos: "PG", rt: 78 },
+    { n: 11, name: "Cho Sung-min", pos: "SG", rt: 77 }, { n: 15, name: "Kim Jong-kyu", pos: "C", rt: 78 },
+    { n: 9, name: "Yang Dong-geun", pos: "SG", rt: 76 }, { n: 14, name: "Lee Seung-jun", pos: "PF", rt: 75 },
+  ]},
+  /* USA '06 — Japan WC bronze; LeBron / Wade / Melo / CP3 era before the Redeem Team */
+  { name: "USA", season: "2006", c: "#B31942", alt: "#0A3161", players: [
+    { n: 6, name: "LeBron James", pos: "SF", rt: 92, trait: "mrImportant" }, { n: 3, name: "Dwyane Wade", pos: "SG", rt: 91 },
+    { n: 15, name: "Carmelo Anthony", pos: "PF", rt: 88 }, { n: 13, name: "Chris Paul", pos: "PG", rt: 86 },
+    { n: 1, name: "Dwight Howard", pos: "C", rt: 87 }, { n: 4, name: "Chris Bosh", pos: "PF", rt: 85 },
+  ]},
+  /* --- complete 1986–2023 World Cup podiums (gold / silver / bronze) --- */
+  { name: "USA", season: "1986", c: "#0A3161", alt: "#B31942", players: [
+    { n: 11, name: "David Robinson", pos: "C", rt: 93, trait: "theTower" }, { n: 7, name: "Kenny Smith", pos: "PG", rt: 86 },
+    { n: 15, name: "Charles Smith", pos: "PF", rt: 83 }, { n: 14, name: "Armon Gilliam", pos: "PF", rt: 82 },
+    { n: 8, name: "Sean Elliott", pos: "SF", rt: 82 }, { n: 6, name: "Steve Kerr", pos: "SG", rt: 78 },
+  ]},
+  { name: "Yugoslavia", season: "1986", c: "#1B4A9C", players: [
+    { n: 4, name: "Dražen Petrović", pos: "SG", rt: 93, trait: "fibaLegend" }, { n: 12, name: "Vlade Divac", pos: "C", rt: 86 },
+    { n: 14, name: "Dino Rađa", pos: "PF", rt: 85 }, { n: 10, name: "Zoran Čutura", pos: "SF", rt: 80 },
+    { n: 5, name: "Zoran Radović", pos: "PG", rt: 78 }, { n: 15, name: "S. Vranković", pos: "C", rt: 79 },
+  ]},
+  { name: "Soviet Union", season: "1990", c: "#CC0000", alt: "#D4AF37", players: [
+    { n: 9, name: "A. Volkov", pos: "PF", rt: 87, trait: "mrImportant" }, { n: 7, name: "V. Tikhonenko", pos: "SF", rt: 85 },
+    { n: 5, name: "S. Bazarevich", pos: "PG", rt: 84 }, { n: 10, name: "G. Vetra", pos: "SG", rt: 81 },
+    { n: 14, name: "V. Goborov", pos: "C", rt: 80 }, { n: 8, name: "V. Berezhnoy", pos: "PF", rt: 77 },
+  ]},
+  { name: "USA", season: "1990", c: "#B31942", alt: "#0A3161", players: [
+    { n: 15, name: "Alonzo Mourning", pos: "C", rt: 88, trait: "hotHead" }, { n: 9, name: "Kenny Anderson", pos: "PG", rt: 84 },
+    { n: 14, name: "Billy Owens", pos: "SF", rt: 83 }, { n: 11, name: "Todd Day", pos: "SG", rt: 80 },
+    { n: 12, name: "Chris Gatling", pos: "PF", rt: 79 }, { n: 6, name: "Lee Mayberry", pos: "PG", rt: 77 },
+  ]},
+  { name: "Russia", season: "1994", c: "#0039A6", alt: "#D52B1E", players: [
+    { n: 9, name: "S. Bazarevich", pos: "PG", rt: 86, trait: "connector" }, { n: 10, name: "S. Babkov", pos: "SG", rt: 84 },
+    { n: 14, name: "Sergey Panov", pos: "SF", rt: 81 }, { n: 11, name: "M. Mikhaylov", pos: "C", rt: 80 },
+    { n: 7, name: "A. Fetisov", pos: "PF", rt: 79 }, { n: 15, name: "Vitaly Nosov", pos: "C", rt: 77 },
+  ]},
+  { name: "Yugoslavia", season: "1998", c: "#C6363C", alt: "#2F5FBF", players: [
+    { n: 5, name: "D. Bodiroga", pos: "SF", rt: 92, trait: "mrImportant" }, { n: 10, name: "A. Đorđević", pos: "PG", rt: 86, trait: "flameThrower" },
+    { n: 14, name: "P. Danilović", pos: "SG", rt: 84 }, { n: 11, name: "Ž. Rebrača", pos: "C", rt: 87 },
+    { n: 12, name: "Vlade Divac", pos: "PF", rt: 85 }, { n: 6, name: "S. Obradović", pos: "SG", rt: 81 },
+  ]},
+  { name: "Russia", season: "1998", c: "#D52B1E", alt: "#0039A6", players: [
+    { n: 10, name: "S. Babkov", pos: "SG", rt: 86, trait: "flameThrower" }, { n: 14, name: "Sergey Panov", pos: "SF", rt: 82 },
+    { n: 5, name: "Igor Kudelin", pos: "PG", rt: 81 }, { n: 11, name: "M. Mikhaylov", pos: "C", rt: 80 },
+    { n: 9, name: "V. Tikhonenko", pos: "PF", rt: 79 }, { n: 6, name: "Z. Pashutin", pos: "SG", rt: 76 },
+  ]},
+  { name: "USA", season: "1998", c: "#0A3161", alt: "#B31942", players: [
+    { n: 4, name: "Wendell Alexis", pos: "SF", rt: 82 }, { n: 11, name: "Trajan Langdon", pos: "SG", rt: 80 },
+    { n: 15, name: "Brad Miller", pos: "C", rt: 81 }, { n: 7, name: "Jimmy King", pos: "PG", rt: 77 },
+    { n: 9, name: "Gerard King", pos: "PF", rt: 78 }, { n: 12, name: "Jason Sasser", pos: "SF", rt: 76 },
+  ]},
+  /* --- remaining all-time WC nations (one curated squad each; UAR folded into Egypt) --- */
+  { name: "Chile", season: "1959", c: "#D52B1E", alt: "#0039A6", players: [
+    { n: 14, name: "J. Arredondo", pos: "SF", rt: 80 }, { n: 7, name: "R. Etcheverry", pos: "PG", rt: 78 },
+    { n: 11, name: "L. Salvadores", pos: "SG", rt: 77 }, { n: 15, name: "O. Ledesma", pos: "C", rt: 78 },
+    { n: 9, name: "V. Mahana", pos: "PF", rt: 76 }, { n: 5, name: "J. Domínguez", pos: "SG", rt: 74 },
+  ]},
+  { name: "Uruguay", season: "1986", c: "#0038A8", alt: "#FFFFFF", players: [
+    { n: 14, name: "H. Pierri", pos: "SF", rt: 81 }, { n: 7, name: "H. Peinado", pos: "PG", rt: 78 },
+    { n: 10, name: "J. Gamis", pos: "SG", rt: 77 }, { n: 15, name: "A. Larrazábal", pos: "C", rt: 78 },
+    { n: 12, name: "M. Pagura", pos: "PF", rt: 76 }, { n: 5, name: "D. García", pos: "SG", rt: 74 },
+  ]},
+  { name: "Cuba", season: "1974", c: "#002A8F", alt: "#CF142B", players: [
+    { n: 10, name: "R. Rizo", pos: "SF", rt: 82 }, { n: 7, name: "T. Herrera", pos: "PG", rt: 79 },
+    { n: 14, name: "A. Morales", pos: "PF", rt: 80 }, { n: 15, name: "P. Abreu", pos: "C", rt: 79 },
+    { n: 9, name: "J. Pérez", pos: "SG", rt: 77 }, { n: 5, name: "R. Cabrera", pos: "SG", rt: 75 },
+  ]},
+  { name: "Czechoslovakia", season: "1982", c: "#11457E", alt: "#D7141A", players: [
+    { n: 9, name: "Kamil Brabenec", pos: "SF", rt: 86, trait: "fibaLegend" }, { n: 14, name: "S. Kropilák", pos: "PF", rt: 83 },
+    { n: 7, name: "V. Havlík", pos: "SG", rt: 80 }, { n: 15, name: "Z. Kos", pos: "C", rt: 81 },
+    { n: 5, name: "J. Zídek", pos: "PG", rt: 78 }, { n: 11, name: "J. Skála", pos: "PF", rt: 77 },
+  ]},
+  { name: "Netherlands", season: "1986", c: "#FF6600", players: [
+    { n: 10, name: "Rik Smits", pos: "C", rt: 88, trait: "theTower" }, { n: 5, name: "Jelle Esveldt", pos: "PG", rt: 78 },
+    { n: 11, name: "Hans Heijdeman", pos: "SG", rt: 77 }, { n: 8, name: "Raymond Bottse", pos: "SF", rt: 76 },
+    { n: 15, name: "Peter van Noord", pos: "PF", rt: 76 }, { n: 6, name: "Ronald Schilp", pos: "SG", rt: 74 },
+  ]},
+  { name: "Panama", season: "1986", c: "#005293", alt: "#D21034", players: [
+    { n: 14, name: "Rolando Frazer", pos: "PF", rt: 85, trait: "pointGame42" }, { n: 11, name: "Mario Butler", pos: "C", rt: 82 },
+    { n: 7, name: "E. Rivas", pos: "SG", rt: 78 }, { n: 5, name: "G. Gálvez", pos: "PG", rt: 77 },
+    { n: 9, name: "L. Malcolm", pos: "SF", rt: 76 }, { n: 12, name: "R. Gálvez", pos: "PF", rt: 74 },
+  ]},
+  { name: "Israel", season: "1986", c: "#0038B8", alt: "#FFFFFF", players: [
+    { n: 10, name: "Doron Jamchi", pos: "SG", rt: 84, trait: "flameThrower" }, { n: 7, name: "M. Berkowitz", pos: "PG", rt: 81 },
+    { n: 14, name: "A. Daniel", pos: "SF", rt: 78 }, { n: 15, name: "L. Leaf", pos: "C", rt: 79 },
+    { n: 9, name: "G. Turgeman", pos: "PF", rt: 76 }, { n: 5, name: "H. Kuttler", pos: "SG", rt: 74 },
+  ]},
+  { name: "Ukraine", season: "2014", c: "#0057B8", alt: "#FFD700", players: [
+    { n: 0, name: "Pooh Jeter", pos: "PG", rt: 83, trait: "chaosEnergy" }, { n: 14, name: "Kyrylo Fesenko", pos: "C", rt: 80 },
+    { n: 8, name: "O. Mishula", pos: "SG", rt: 77 }, { n: 13, name: "E. Gladyr", pos: "SF", rt: 78 },
+    { n: 15, name: "M. Korniyenko", pos: "PF", rt: 76 }, { n: 7, name: "D. Zabirchenko", pos: "SG", rt: 74 },
+  ]},
+  { name: "Tunisia", season: "2019", c: "#E70013", players: [
+    { n: 50, name: "Salah Mejri", pos: "C", rt: 84, trait: "foulTrouble" }, { n: 7, name: "Michael Roll", pos: "SG", rt: 81 },
+    { n: 12, name: "M. Ben Romdhane", pos: "PF", rt: 79 }, { n: 5, name: "Omar Abada", pos: "PG", rt: 77 },
+    { n: 9, name: "M. Hadidane", pos: "SF", rt: 76 }, { n: 15, name: "R. Slimane", pos: "PF", rt: 74 },
+  ]},
+  { name: "Egypt", season: "2023", c: "#C8102E", alt: "#FFFFFF", players: [
+    { n: 50, name: "Assem Marei", pos: "C", rt: 82 }, { n: 5, name: "Anas Mahmoud", pos: "PF", rt: 79 },
+    { n: 1, name: "Ehab Amin", pos: "SG", rt: 80 }, { n: 7, name: "Omar Oraby", pos: "C", rt: 76 },
+    { n: 10, name: "W. Abouelanin", pos: "PG", rt: 76 }, { n: 14, name: "A. Gendy", pos: "SF", rt: 75 },
+  ]},
+  { name: "Ivory Coast", season: "2023", c: "#FF8200", alt: "#009E60", players: [
+    { n: 12, name: "Vafessa Fofana", pos: "SF", rt: 80 }, { n: 2, name: "Bazoumana Koné", pos: "PG", rt: 78 },
+    { n: 1, name: "Charles Abouo", pos: "SG", rt: 77 }, { n: 23, name: "Cedric Bah", pos: "C", rt: 78 },
+    { n: 4, name: "Patrick Tape", pos: "PF", rt: 76 }, { n: 45, name: "N. Zouzoua", pos: "SG", rt: 74 },
+  ]},
+  { name: "Bulgaria", season: "1959", c: "#00966E", alt: "#D62612", players: [
+    { n: 10, name: "G. Panov", pos: "SF", rt: 80 }, { n: 7, name: "V. Radev", pos: "PG", rt: 77 },
+    { n: 14, name: "I. Mirchev", pos: "PF", rt: 78 }, { n: 15, name: "L. Panov", pos: "C", rt: 79 },
+    { n: 9, name: "A. Atanasov", pos: "SG", rt: 76 }, { n: 5, name: "K. Georgiev", pos: "SG", rt: 74 },
+  ]},
+  { name: "Peru", season: "1950", c: "#D91023", alt: "#FFFFFF", players: [
+    { n: 10, name: "R. Asca", pos: "SF", rt: 78 }, { n: 5, name: "O. Morante", pos: "PG", rt: 76 },
+    { n: 14, name: "E. Vergara", pos: "PF", rt: 77 }, { n: 15, name: "J. Alegre", pos: "C", rt: 77 },
+    { n: 8, name: "C. Vásquez", pos: "SG", rt: 75 }, { n: 7, name: "A. Ferreyros", pos: "SG", rt: 74 },
+  ]},
+  { name: "Ecuador", season: "1950", c: "#FFDD00", alt: "#034EA2", players: [
+    { n: 10, name: "J. Villacís", pos: "SF", rt: 77 }, { n: 5, name: "C. Garcés", pos: "PG", rt: 75 },
+    { n: 14, name: "R. Alarcón", pos: "PF", rt: 76 }, { n: 15, name: "M. Freire", pos: "C", rt: 76 },
+    { n: 8, name: "A. Burbano", pos: "SG", rt: 74 }, { n: 7, name: "L. Noboa", pos: "SG", rt: 73 },
+  ]},
+  { name: "Paraguay", season: "1954", c: "#D52B1E", alt: "#0038A8", players: [
+    { n: 10, name: "A. López", pos: "SF", rt: 77 }, { n: 5, name: "J. Zapag", pos: "PG", rt: 75 },
+    { n: 14, name: "R. Duarte", pos: "PF", rt: 76 }, { n: 15, name: "C. Brun", pos: "C", rt: 76 },
+    { n: 8, name: "E. Insfrán", pos: "SG", rt: 74 }, { n: 7, name: "M. Fretes", pos: "SG", rt: 73 },
+  ]},
+  { name: "Chinese Taipei", season: "1954", c: "#FE001A", alt: "#000095", players: [
+    { n: 10, name: "Tong Suet-fong", pos: "SF", rt: 78 }, { n: 5, name: "Hsieh Chin-kuang", pos: "PG", rt: 76 },
+    { n: 14, name: "Wang Yih-jiun", pos: "PF", rt: 77 }, { n: 15, name: "Chu Hsiu-hsiung", pos: "C", rt: 77 },
+    { n: 8, name: "Liao Wei-cheng", pos: "SG", rt: 75 }, { n: 7, name: "Lin Chun-chi", pos: "SG", rt: 74 },
+  ]},
+  { name: "Colombia", season: "1982", c: "#FCD116", alt: "#003893", players: [
+    { n: 10, name: "H. Rivas", pos: "SF", rt: 78 }, { n: 5, name: "J. Moncada", pos: "PG", rt: 76 },
+    { n: 14, name: "C. Serna", pos: "PF", rt: 77 }, { n: 15, name: "A. Escobar", pos: "C", rt: 77 },
+    { n: 8, name: "R. Caicedo", pos: "SG", rt: 75 }, { n: 7, name: "F. López", pos: "SG", rt: 74 },
+  ]},
+  { name: "Central African Republic", season: "1974", c: "#003082", alt: "#289728", players: [
+    { n: 10, name: "F. Goyémidé", pos: "SF", rt: 78 }, { n: 5, name: "J. Touadéra", pos: "PG", rt: 75 },
+    { n: 14, name: "A. Yangongo", pos: "PF", rt: 76 }, { n: 15, name: "M. N'Dinga", pos: "C", rt: 77 },
+    { n: 8, name: "P. Kongbo", pos: "SG", rt: 74 }, { n: 7, name: "S. Maka", pos: "SG", rt: 73 },
+  ]},
+  { name: "Malaysia", season: "1986", c: "#CC0001", alt: "#010066", players: [
+    { n: 8, name: "Tan Kim Chin", pos: "SG", rt: 79 }, { n: 5, name: "Gong Siew Hoong", pos: "PG", rt: 75 },
+    { n: 14, name: "Chow Kam Thai", pos: "PF", rt: 76 }, { n: 15, name: "Yap Cheng Tong", pos: "C", rt: 76 },
+    { n: 10, name: "Lee Yoke Wah", pos: "SF", rt: 75 }, { n: 7, name: "Kwa Chong Seng", pos: "SG", rt: 73 },
+  ]},
+  { name: "Algeria", season: "2002", c: "#006233", alt: "#D21034", players: [
+    { n: 10, name: "S. Harouni", pos: "SF", rt: 78 }, { n: 5, name: "N. Hamdini", pos: "PG", rt: 76 },
+    { n: 14, name: "A. Abboud", pos: "PF", rt: 77 }, { n: 15, name: "M. Benzeggane", pos: "C", rt: 77 },
+    { n: 8, name: "K. Dahmani", pos: "SG", rt: 75 }, { n: 7, name: "Y. Merah", pos: "SG", rt: 74 },
+  ]},
+  { name: "Qatar", season: "2006", c: "#8A1538", players: [
+    { n: 10, name: "Yasseen Ismail", pos: "SF", rt: 78 }, { n: 5, name: "Malek Saleem", pos: "PG", rt: 76 },
+    { n: 14, name: "Mohammed Turki", pos: "PF", rt: 76 }, { n: 15, name: "Ali Turki", pos: "C", rt: 77 },
+    { n: 8, name: "Khalid Suliman", pos: "SG", rt: 75 }, { n: 7, name: "Erfan Ali Saeed", pos: "SG", rt: 74 },
+  ]},
 ];
 
 /* 1992 Olympic "Dream Team" — scraped from Wikipedia roster; bonus opponent only */
@@ -1054,7 +1283,7 @@ function buildStory(g, box, style) {
   ]);
   else if (m > 0) story = rndT([
     `Nail-biter: ${top.name} hit the big shots late to hold off ${oppN}.`,
-    `${top.name} (${top.pts} pts) closed it out from the line in a grinder — too close for sweep standards.`,
+    `${top.name} (${top.pts} pts) closed it out from the line in a grinder of a finish.`,
     `${oppN} pushed to the final buzzer, but ${top.name} answered every run.`,
   ]);
   else if (m <= -15) story = rndT([
@@ -1209,33 +1438,27 @@ function roundGameIndex(i) {
 
 function gameMarginLabel(g, i) {
   if (isDreamGame(g)) return g.my > g.op ? "BONUS WIN" : "DREAM TEAM WINS";
-  if (g.my > g.op) return g.my - g.op >= 10 ? "✓ DOUBLE-DIGIT WIN" : "WIN UNDER 10 — SWEEP GONE";
-  return i < 3 ? "GROUP LOSS — TABLE DECIDES" : i < 5 ? "2ND ROUND LOSS — TABLE DECIDES" : "ELIMINATED";
+  if (g.my > g.op) return "✓ WIN";
+  return i < 3 ? "GROUP LOSS — SWEEP GONE" : i < 5 ? "2ND ROUND LOSS — SWEEP GONE" : "ELIMINATED";
 }
 
 const GAME_RESULT_STYLES = {
-  close: { background: "#2a2418", color: "#e8d48a", border: "1px solid #5c4f28" },
-  sweep: { background: "#1d3a2a", color: "#7ee2a8", border: "1px solid #2c5c40" },
+  win: { background: "#1d3a2a", color: "#7ee2a8", border: "1px solid #2c5c40" },
   loss: { background: "#3a1d22", color: "#f08a8a", border: "1px solid #5c2c34" },
 };
 
 function gameResultState(g) {
   if (!g) return null;
-  const m = g.my - g.op;
-  if (m <= 0) return "loss";
-  if (m >= 10) return "sweep";
-  return "close";
+  return g.my > g.op ? "win" : "loss";
 }
 
 function marginColor(m) {
-  if (m <= 0) return GAME_RESULT_STYLES.loss.color;
-  if (m >= 10) return GAME_RESULT_STYLES.sweep.color;
-  return GAME_RESULT_STYLES.close.color;
+  return m > 0 ? GAME_RESULT_STYLES.win.color : GAME_RESULT_STYLES.loss.color;
 }
 
 const MatchSummaryCard = ({ g, i }) => {
   const state = gameResultState(g);
-  const icon = state === "loss" ? "✕" : state === "sweep" ? "🔥" : "✓";
+  const icon = state === "loss" ? "✕" : "✓";
   const resultStyle = GAME_RESULT_STYLES[state];
   const subIdx = roundGameIndex(i);
   const scorers = g.box?.slice(0, 3).map((p) => `${p.name} ${p.pts}`).join(", ") || "";
@@ -1287,16 +1510,16 @@ function runOutcomeTheme(perfect, eliminated) {
 
 const RunSummaryHero = ({ perfect, eliminated, groupOut, r2Out, runStats }) => {
   if (!runStats) return null;
-  const { w, l, ppgF, ppgA, sweepWins } = runStats;
+  const { w, l, ppgF, ppgA, bigWin } = runStats;
   const theme = runOutcomeTheme(perfect, eliminated);
 
   let headline, record, subLabel, statThirdLabel, statThirdValue;
   if (perfect) {
     headline = "THE PERFECT SWEEP";
-    record = "8×10";
-    subLabel = "8 SWEEPS";
-    statThirdLabel = "SWEEPS";
-    statThirdValue = sweepWins;
+    record = "8–0";
+    subLabel = "UNDEFEATED";
+    statThirdLabel = "BIG WIN";
+    statThirdValue = `+${bigWin}`;
   } else if (eliminated) {
     headline = groupOut ? "OUT IN THE GROUP STAGE" : r2Out ? "OUT IN THE 2ND ROUND" : "ELIMINATED";
     record = `${w}–${l}`;
@@ -1305,10 +1528,10 @@ const RunSummaryHero = ({ perfect, eliminated, groupOut, r2Out, runStats }) => {
     statThirdValue = w;
   } else {
     headline = "WORLD CHAMPIONS";
-    record = "8–0";
-    subLabel = `${sweepWins} SWEEP${sweepWins !== 1 ? "S" : ""}`;
-    statThirdLabel = "SWEEPS";
-    statThirdValue = sweepWins;
+    record = `${w}–${l}`;
+    subLabel = l === 1 ? "1 LOSS · STILL CHAMPIONS" : `${l} LOSSES · STILL CHAMPIONS`;
+    statThirdLabel = "BIG WIN";
+    statThirdValue = bigWin > 0 ? `+${bigWin}` : "—";
   }
 
   return (
@@ -1636,9 +1859,12 @@ export default function PerfectSweep() {
   const tournamentGames = games.filter((g) => !isDreamGame(g));
   const dreamGame = games.find(isDreamGame);
   const wins = tournamentGames.filter((g) => g.my > g.op).length;
-  const perfect = tournamentGames.length === 8 && tournamentGames.every((g) => g.my - g.op >= 10);
+  const losses = tournamentGames.length - wins;
+  // Perfect Sweep = undefeated through all 8. World Champions = win the Final (any record).
+  const perfect = tournamentGames.length === 8 && tournamentGames.every((g) => g.my > g.op);
   const lastG = tournamentGames[tournamentGames.length - 1];
   const eliminated = groupOut || r2Out || (tournamentGames.length > 5 && lastG && lastG.my < lastG.op);
+  const worldChampions = !eliminated && tournamentGames.length === 8 && lastG && lastG.my > lastG.op;
 
   /* ---- end-of-run stats ---- */
   const runStats = useMemo(() => {
@@ -1651,21 +1877,22 @@ export default function PerfectSweep() {
     }).sort((a, b) => b.ppg - a.ppg);
     const pf = tg.reduce((s, g) => s + g.my, 0), pa = tg.reduce((s, g) => s + g.op, 0);
     const margins = tg.map((g) => g.my - g.op);
-    const resultLabel = perfect ? "THE PERFECT SWEEP — 8×10"
+    const record = `${wins}–${losses}`;
+    const resultLabel = perfect ? `THE PERFECT SWEEP — ${record}`
       : eliminated ? (groupOut ? "OUT IN THE GROUP STAGE" : r2Out ? "OUT IN THE 2ND ROUND" : `ELIMINATED — ${tournamentGames[tournamentGames.length - 1].round}`)
-      : "WORLD CHAMPIONS — 8–0";
+      : worldChampions ? `WORLD CHAMPIONS — ${record}`
+      : record;
     return {
       players, resultLabel,
-      w: wins, l: tg.length - wins,
+      w: wins, l: losses,
       totalPF: pf, totalPA: pa,
       ppgF: pf / tg.length, ppgA: pa / tg.length,
       avgMargin: margins.reduce((a, b) => a + b, 0) / tg.length,
       bigWin: Math.max(...margins),
-      sweepWins: margins.filter((m) => m >= 10).length,
       margins,
       ovr: Math.round(myRt),
     };
-  }, [screen, games, tournamentGames, lineup, wins, perfect, eliminated, groupOut, r2Out, myRt]);
+  }, [screen, games, tournamentGames, lineup, wins, losses, perfect, eliminated, worldChampions, groupOut, r2Out, myRt]);
 
 
 
@@ -1678,11 +1905,11 @@ export default function PerfectSweep() {
         style={{ background: "linear-gradient(180deg,#131826,#0e1219)", borderBottom: "1px solid #232b3d" }}>
         <div className="flex items-center gap-3 cursor-pointer" onClick={reset}>
           <div className="skew chip px-3 py-1 dsp9 text-lg" style={{ background: "#E8465A", color: "#fff" }}>
-            <span className="unskew">8×10</span>
+            <span className="unskew">8–0</span>
           </div>
           <div className="dsp text-lg" style={{ color: "#EAF0F7" }}>PERFECT SWEEP</div>
         </div>
-        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2">FIBA WORLD CUP · 1986—2023</div>
+        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2">FIBA WORLD CUP · 1950—2023</div>
       </div>
       {/* accent strips */}
       <div style={{ height: 3, background: "linear-gradient(90deg,#E8465A 0%,#E8465A 30%,#23b4e2 30%,#23b4e2 33%,transparent 33%)" }} />
@@ -1701,10 +1928,10 @@ export default function PerfectSweep() {
             ROLL THE BALL. DRAFT YOUR DREAM NATIONAL FIVE.
           </h1>
           <p className="mt-4 text-base max-w-xl mx-auto" style={{ color: "#93a1b5" }}>
-            Roll legendary World Cup squads, draft your five, and chase the perfect mark: <b style={{ color: "#ff8b98" }}>win all eight by 10+.</b>
+            Roll legendary World Cup squads, draft your five, and chase the perfect mark: <b style={{ color: "#ff8b98" }}>win the Cup without losing a single game.</b>
           </p>
           <div className="flex justify-center gap-3 mt-8 flex-wrap">
-            {[["01", "ROLL", "draw nations & years"], ["02", "DRAFT", "one star per position"], ["03", "SWEEP", "8 wins, all double digits"]].map(([n, t, d]) => (
+            {[["01", "ROLL", "draw nations & years"], ["02", "DRAFT", "one star per position"], ["03", "SWEEP", "win the Cup undefeated"]].map(([n, t, d]) => (
               <div key={n} className="panel px-5 py-3 text-left" style={{ minWidth: 170 }}>
                 <div className="dsp9 text-2xl" style={{ color: "#E8465A" }}>{n} <span style={{ color: "#EAF0F7" }}>{t}</span></div>
                 <div className="text-xs" style={{ color: "#7d8ba0" }}>{d}</div>
@@ -2175,14 +2402,14 @@ export default function PerfectSweep() {
                     ? dreamGame.my > dreamGame.op
                       ? "You beat the Dream Team. There is nothing left to prove."
                       : "The Dream Team wins again. Some legends are untouchable."
-                    : "World champions! Eight wins, every one by double digits. So the remaining question is. Are you better than the legendary Dream Team?"
+                    : "World champions — and undefeated. Eight wins, zero losses. So the remaining question is. Are you better than the legendary Dream Team?"
                   : eliminated
                     ? (groupOut
                       ? "Finished outside the top 2 of your group — the tournament goes on without you."
                       : r2Out
                         ? "Outside the top 2 of the 2nd-round group — the quarterfinals go on without you."
                         : `${wins} win${wins !== 1 ? "s" : ""} — the World Cup claims another five.`)
-                    : "Unbeaten through all eight, but not every win hit double digits. The Perfect Sweep escapes you."}
+                    : `World champions at ${wins}–${losses}. You lifted the Cup — but a Perfect Sweep demands zero losses.`}
               </p>
 
               <div ref={ctaAnchorRef} className="mt-6 flex flex-col gap-3">

@@ -1,8 +1,8 @@
 # Perfect Sweep · World Cup Edition
 
-Roll national squads, draft your dream five, and chase the perfect FIBA World Cup sweep — 8 wins, all by double digits.
+Roll national squads, draft your dream five, and chase the perfect FIBA World Cup sweep — win the Cup without losing a single game.
 
-A single-page basketball drafting game built with React and Vite. Each run, you roll a random draw of legendary national-team squads across history, pick one player per slot (PG / SG / SF / PF / C) to build a five-man lineup, choose a playstyle, and simulate your way through an 8-game bracket (group stage → 2nd round → quarterfinal → semifinal → final). Sweep all 8 by 10+ points and unlock a bonus game against the 1992 Dream Team.
+A single-page basketball drafting game built with React and Vite. Each run, you roll a random draw of legendary national-team squads across history, pick one player per slot (PG / SG / SF / PF / C) to build a five-man lineup, choose a playstyle, and simulate your way through an 8-game bracket (group stage → 2nd round → quarterfinal → semifinal → final). Win the Final to become World Champions; go undefeated (8–0) for the Perfect Sweep and unlock a bonus game against the 1992 Dream Team.
 
 ## Features
 
