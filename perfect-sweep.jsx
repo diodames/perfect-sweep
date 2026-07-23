@@ -64,6 +64,11 @@ const TEAMS = [
     { n: 5, name: "Rudy Fernández", pos: "SF", rt: 80 }, { n: 23, name: "Sergio Llull", pos: "SG", rt: 81 },
     { n: 41, name: "J. Hernangómez", pos: "PF", rt: 79 }, { n: 14, name: "W. Hernangómez", pos: "PF", rt: 78 },
   ]},
+  { name: "Spain", season: "2023", c: "#AA151B", alt: "#F1BF00", players: [
+    { n: 2, name: "Lorenzo Brown", pos: "PG", rt: 87 }, { n: 14, name: "W. Hernangómez", pos: "C", rt: 88 },
+    { n: 41, name: "J. Hernangómez", pos: "PF", rt: 83 }, { n: 23, name: "Sergio Llull", pos: "SG", rt: 82 },
+    { n: 5, name: "Rudy Fernández", pos: "SF", rt: 80 }, { n: 7, name: "Santi Aldama", pos: "PF", rt: 81 },
+  ]},
   { name: "Germany", season: "2023", c: "#DD0000", alt: "#FFCE00", players: [
     { n: 17, name: "D. Schröder", pos: "PG", rt: 89 }, { n: 22, name: "Franz Wagner", pos: "SF", rt: 87 },
     { n: 10, name: "Daniel Theis", pos: "C", rt: 81 }, { n: 13, name: "Moritz Wagner", pos: "PF", rt: 80 },
@@ -79,10 +84,20 @@ const TEAMS = [
     { n: 10, name: "N. Bjelica", pos: "PF", rt: 82 }, { n: 9, name: "S. Marković", pos: "SG", rt: 79 },
     { n: 13, name: "M. Raduljica", pos: "C", rt: 79 }, { n: 8, name: "N. Kalinić", pos: "SF", rt: 79 },
   ]},
+  { name: "Serbia", season: "2019", c: "#C6363C", alt: "#1F4E9C", players: [
+    { n: 15, name: "Nikola Jokić", pos: "C", rt: 96, trait: "connector" }, { n: 7, name: "B. Bogdanović", pos: "SG", rt: 90 },
+    { n: 8, name: "N. Bjelica", pos: "PF", rt: 84 }, { n: 24, name: "Stefan Jović", pos: "PG", rt: 82 },
+    { n: 11, name: "V. Lučić", pos: "SF", rt: 80 }, { n: 51, name: "Boban Marjanović", pos: "C", rt: 80 },
+  ]},
   { name: "Greece", season: "2006", c: "#0D5EAF", players: [
     { n: 4, name: "T. Papaloukas", pos: "PG", rt: 88 }, { n: 13, name: "D. Diamantidis", pos: "SG", rt: 88 },
     { n: 7, name: "V. Spanoulis", pos: "SG", rt: 87 }, { n: 12, name: "S. Schortsanitis", pos: "C", rt: 83 },
     { n: 11, name: "A. Fotsis", pos: "PF", rt: 80 }, { n: 14, name: "M. Kakiouzis", pos: "SF", rt: 79 },
+  ]},
+  { name: "Lithuania", season: "2006", c: "#046A38", alt: "#FDB913", players: [
+    { n: 6, name: "A. Macijauskas", pos: "SG", rt: 88 }, { n: 9, name: "D. Songaila", pos: "PF", rt: 84 },
+    { n: 11, name: "Linas Kleiza", pos: "SF", rt: 83 }, { n: 7, name: "D. Lavrinovič", pos: "PF", rt: 82 },
+    { n: 15, name: "R. Javtokas", pos: "C", rt: 81 }, { n: 10, name: "M. Kalnietis", pos: "PG", rt: 78 },
   ]},
   { name: "Lithuania", season: "2010", c: "#046A38", players: [
     { n: 11, name: "Linas Kleiza", pos: "SF", rt: 85 }, { n: 13, name: "D. Songaila", pos: "PF", rt: 80 },
@@ -99,10 +114,20 @@ const TEAMS = [
     { n: 10, name: "A. Komazec", pos: "SG", rt: 82 }, { n: 9, name: "V. Perasović", pos: "SF", rt: 81 },
     { n: 15, name: "S. Vranković", pos: "C", rt: 80 }, { n: 5, name: "V. Šretl", pos: "PG", rt: 75 },
   ]},
+  { name: "Croatia", season: "2010", c: "#FF0000", alt: "#0F3C8C", players: [
+    { n: 25, name: "Ante Tomić", pos: "C", rt: 84 }, { n: 44, name: "B. Bogdanović", pos: "SG", rt: 83 },
+    { n: 10, name: "Z. Planinić", pos: "PG", rt: 82 }, { n: 5, name: "R. Ukić", pos: "SG", rt: 80 },
+    { n: 7, name: "M. Banić", pos: "PF", rt: 79 }, { n: 9, name: "M. Popović", pos: "SF", rt: 78 },
+  ]},
   { name: "Slovenia", season: "2023", c: "#00A94F", players: [
     { n: 77, name: "Luka Dončić", pos: "PG", rt: 96, traits: ["heroBall", "refMeltdown"] }, { n: 6, name: "A. Tobey", pos: "C", rt: 79 },
     { n: 3, name: "K. Prepelič", pos: "SG", rt: 79 }, { n: 31, name: "V. Čančar", pos: "PF", rt: 78 },
     { n: 11, name: "J. Blažič", pos: "SF", rt: 76 }, { n: 30, name: "Z. Dragić", pos: "SG", rt: 75 },
+  ]},
+  { name: "Australia", season: "2014", c: "#00843D", players: [
+    { n: 5, name: "Patty Mills", pos: "PG", rt: 86 }, { n: 6, name: "M. Dellavedova", pos: "SG", rt: 81 },
+    { n: 12, name: "Aron Baynes", pos: "C", rt: 82 }, { n: 7, name: "Joe Ingles", pos: "SF", rt: 80 },
+    { n: 4, name: "D. Andersen", pos: "PF", rt: 78 }, { n: 9, name: "Ryan Broekhoff", pos: "SF", rt: 76 },
   ]},
   { name: "Australia", season: "2019", c: "#00843D", players: [
     { n: 5, name: "Patty Mills", pos: "PG", rt: 87 }, { n: 7, name: "Joe Ingles", pos: "SF", rt: 82 },
@@ -159,6 +184,11 @@ const TEAMS = [
     { n: 11, name: "Anderson Varejão", pos: "PF", rt: 83 }, { n: 9, name: "Marcelo Huertas", pos: "PG", rt: 79 },
     { n: 8, name: "Alex Garcia", pos: "SF", rt: 78 }, { n: 4, name: "Marcelinho Machado", pos: "SG", rt: 77 },
   ]},
+  { name: "Brazil", season: "2019", c: "#009C3B", alt: "#FFDF00", players: [
+    { n: 19, name: "Leandro Barbosa", pos: "SG", rt: 82 }, { n: 5, name: "Raul Neto", pos: "PG", rt: 81 },
+    { n: 11, name: "Anderson Varejão", pos: "C", rt: 80 }, { n: 14, name: "Marquinhos", pos: "SF", rt: 79 },
+    { n: 9, name: "Vítor Benite", pos: "SG", rt: 78 }, { n: 6, name: "Cristiano Felício", pos: "PF", rt: 77 },
+  ]},
   { name: "China", season: "2019", c: "#DE2910", alt: "#FFD700", players: [
     { n: 11, name: "Yi Jianlian", pos: "PF", rt: 82 }, { n: 6, name: "Guo Ailun", pos: "PG", rt: 78 },
     { n: 15, name: "Zhou Qi", pos: "C", rt: 77 }, { n: 9, name: "Zhao Rui", pos: "SG", rt: 76 },
@@ -186,9 +216,9 @@ const TEAMS = [
     { n: 24, name: "A. Gražulis", pos: "PF", rt: 78 }, { n: 0, name: "R. Kurucs", pos: "SF", rt: 76 },
   ]},
   { name: "Czechia", season: "2019", c: "#11457E", alt: "#D7141A", players: [
-    { n: 8, name: "T. Satoranský", pos: "PG", rt: 84, trait: "connector" }, { n: 24, name: "Jan Veselý", pos: "C", rt: 83 },
-    { n: 11, name: "Blake Schilb", pos: "SF", rt: 79 }, { n: 17, name: "J. Welsch", pos: "SG", rt: 76 },
-    { n: 12, name: "O. Balvín", pos: "PF", rt: 77 }, { n: 7, name: "Vít Krejčí", pos: "SG", rt: 75 },
+    { n: 8, name: "T. Satoranský", pos: "PG", rt: 84, trait: "connector" }, { n: 17, name: "J. Bohačík", pos: "SG", rt: 82 },
+    { n: 11, name: "Blake Schilb", pos: "SF", rt: 79 }, { n: 7, name: "V. Hruban", pos: "SF", rt: 78 },
+    { n: 12, name: "O. Balvín", pos: "C", rt: 77 }, { n: 1, name: "Patrik Auda", pos: "PF", rt: 76 },
   ]},
   { name: "Nigeria", season: "2023", c: "#008751", alt: "#FFFFFF", players: [
     { n: 7, name: "Gabe Vincent", pos: "PG", rt: 82 }, { n: 20, name: "Josh Okogie", pos: "SF", rt: 81 },
@@ -1093,6 +1123,9 @@ function buildEvents(g, box, opp) {
     rndT([`${oppName} scores inside`, `${oppName} gets to the rim`, `${oppName} hits a tough jumper`]);
   const regMy = g.regMy ?? g.my;
   const regOp = g.regOp ?? g.op;
+  // Prefer real quarter splits so scoring development matches the Q1–Q4 table.
+  const myQ = Array.isArray(g.myQ) && g.myQ.length >= 4 ? g.myQ.slice(0, 4) : splitQ(regMy);
+  const opQ = Array.isArray(g.opQ) && g.opQ.length >= 4 ? g.opQ.slice(0, 4) : splitQ(regOp);
   const stamp = (e, sec) => {
     const q = Math.min(4, Math.floor(sec / 600) + 1);
     const rem = 600 - (sec % 600);
@@ -1118,16 +1151,24 @@ function buildEvents(g, box, opp) {
     }
     return { ...e, sec, q: sec < 2400 ? q : 4 + Math.floor((sec - 2400) / 300), clock, text };
   };
-  const regEvs = [
-    ...buckets(regMy).map((p) => ({ team: "me", pts: p })),
-    ...buckets(regOp).map((p) => ({ team: "op", pts: p })),
-  ].map((e) => stamp(e, Math.floor(Math.random() * 2400)));
+  const stampInWindow = (e, base, len) => {
+    // Keep events inside the period (avoid landing exactly on the next tip).
+    const sec = base + Math.floor(Math.random() * Math.max(1, len - 1));
+    return stamp(e, sec);
+  };
+  const regEvs = [0, 1, 2, 3].flatMap((qi) => {
+    const base = qi * 600;
+    return [
+      ...buckets(myQ[qi] || 0).map((p) => stampInWindow({ team: "me", pts: p }, base, 600)),
+      ...buckets(opQ[qi] || 0).map((p) => stampInWindow({ team: "op", pts: p }, base, 600)),
+    ];
+  });
   const otEvs = (g.otMy || []).flatMap((myOT, i) => {
     const opOT = g.otOp[i];
     const base = 2400 + i * 300;
     return [
-      ...buckets(myOT).map((p) => stamp({ team: "me", pts: p }, base + Math.floor(Math.random() * 300))),
-      ...buckets(opOT).map((p) => stamp({ team: "op", pts: p }, base + Math.floor(Math.random() * 300))),
+      ...buckets(myOT).map((p) => stampInWindow({ team: "me", pts: p }, base, 300)),
+      ...buckets(opOT).map((p) => stampInWindow({ team: "op", pts: p }, base, 300)),
     ];
   });
   return [...regEvs, ...otEvs].sort((a, b) => a.sec - b.sec);
@@ -2458,7 +2499,9 @@ export default function PerfectSweep() {
           </div>
           <div className="dsp text-lg" style={{ color: "#EAF0F7" }}>PERFECT SWEEP</div>
         </div>
-        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2">FIBA WORLD CUP · 1986—2023</div>
+        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2">
+          FIBA WORLD CUP · {ARCHIVE_STATS.years.first}—{ARCHIVE_STATS.years.last}
+        </div>
       </div>
       {/* accent strips */}
       <div style={{ height: 3, background: "linear-gradient(90deg,#E8465A 0%,#E8465A 30%,#23b4e2 30%,#23b4e2 33%,transparent 33%)" }} />
@@ -3139,7 +3182,9 @@ export default function PerfectSweep() {
               </h1>
               <div className="eyebrow" style={{ color: "#93a1b5" }}>
                 {browseNationData.squads.length} SQUAD{browseNationData.squads.length !== 1 ? "S" : ""} ·{" "}
-                {browseNationData.squads[browseNationData.squads.length - 1].season}–{browseNationData.squads[0].season}
+                {browseNationData.squads.length === 1
+                  ? browseNationData.squads[0].season
+                  : `${browseNationData.squads[browseNationData.squads.length - 1].season}–${browseNationData.squads[0].season}`}
               </div>
             </div>
             <p className="mt-4 text-sm" style={{ color: "#93a1b5" }}>
