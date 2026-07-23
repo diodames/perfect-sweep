@@ -3392,8 +3392,11 @@ export default function PerfectSweep() {
             <div className="panel p-6 text-center text-sm" style={{ color: "#ff8b98" }}>{lbError}</div>
           )}
           {!lbLoading && !lbError && lbEntries.length === 0 && (
-            <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>
-              No entries yet. Go undefeated, beat the Dream Team, and claim the first spot.
+            <div className="panel p-8 text-center">
+              <div className="dsp9 text-2xl" style={{ color: "#EAF0F7" }}>THE THRONE IS EMPTY</div>
+              <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: "#93a1b5" }}>
+                Nobody's gone 8–0 and taken down the Dream Team yet. Be the first name on the board.
+              </p>
             </div>
           )}
           {!lbLoading && !lbError && lbEntries.length > 0 && (
