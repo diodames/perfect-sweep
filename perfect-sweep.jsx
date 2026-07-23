@@ -1662,7 +1662,7 @@ export default function PerfectSweep() {
       <style>{css}</style>
 
       {/* ===== top bar ===== */}
-      <div className="flex items-center justify-between px-5 py-3 relative"
+      <div className="flex items-center justify-center px-5 py-3 relative"
         style={{ background: "linear-gradient(180deg,#131826,#0e1219)", borderBottom: "1px solid #232b3d" }}>
         <div className="flex items-center gap-3 cursor-pointer" onClick={reset}>
           <div className="skew chip px-3 py-1 dsp9 text-lg" style={{ background: "#E8465A", color: "#fff" }}>
@@ -1670,7 +1670,7 @@ export default function PerfectSweep() {
           </div>
           <div className="dsp text-lg" style={{ color: "#EAF0F7" }}>PERFECT SWEEP</div>
         </div>
-        <div className="eyebrow hidden sm:block">FIBA WORLD CUP · 1986—2023</div>
+        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2">FIBA WORLD CUP · 1986—2023</div>
       </div>
       {/* accent strips */}
       <div style={{ height: 3, background: "linear-gradient(90deg,#E8465A 0%,#E8465A 30%,#23b4e2 30%,#23b4e2 33%,transparent 33%)" }} />
