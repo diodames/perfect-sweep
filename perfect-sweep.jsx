@@ -232,9 +232,15 @@ const isDreamGame = (g) => g.round === DREAM_TEAM_ROUND;
 
 const SLOTS = ["PG", "SG", "SF", "PF", "C"];
 const STYLES = [
-  { id: "run", label: "RUN & GUN", desc: "Fast pace, big scores — both ways", off: 6, def: -4, pace: 14 },
-  { id: "bal", label: "BALANCED", desc: "Steady on both ends", off: 0, def: 0, pace: 0 },
-  { id: "lock", label: "LOCKDOWN", desc: "Slow it down, strangle them", off: -3, def: 6, pace: -12 },
+  { id: "run", label: "RUN & GUN", desc: "Fast pace, big scores — both ways",
+    tip: "Great for guards — push the tempo, hunt transition buckets, live with the open rim",
+    off: 6, def: -4, pace: 14 },
+  { id: "bal", label: "BALANCED", desc: "Steady on both ends",
+    tip: "No extremes — steady offense and defense, fits any five you roll",
+    off: 0, def: 0, pace: 0 },
+  { id: "lock", label: "LOCKDOWN", desc: "Slow it down, strangle them",
+    tip: "Built for bigs — grind the pace, wall off the paint, win ugly",
+    off: -3, def: 6, pace: -12 },
 ];
 const ROUNDS = ["GROUP GAME 1", "GROUP GAME 2", "GROUP GAME 3", "2ND ROUND — GAME 1", "2ND ROUND — GAME 2", "QUARTERFINAL", "SEMIFINAL", "THE FINAL"];
 
@@ -833,48 +839,176 @@ const oppColor = (team) => {
   return OPP_FALLBACKS[i];
 };
 
-/* ---- momentum / game-flow curve (xT-style) ---- */
+/* ---- scoring development (cumulative margin, stepped) ---- */
 function buildFlow(evs) {
-  const BINS = 40; // one bin per minute of a 40-min FIBA game
-  const bins = new Array(BINS).fill(0);
-  evs.forEach((e) => {
-    const i = Math.min(BINS - 1, Math.floor(e.sec / 60));
-    bins[i] += e.team === "me" ? e.pts : -e.pts;
-  });
-  const smooth = bins.map((_, i) => {
-    let s = 0, w = 0;
-    for (let k = -3; k <= 3; k++) {
-      const j = i + k; if (j < 0 || j >= BINS) continue;
-      const wt = 1 / (1 + Math.abs(k)); s += bins[j] * wt; w += wt;
-    }
-    return w ? s / w : 0;
-  });
-  const max = Math.max(1, ...smooth.map((v) => Math.abs(v)));
-  return smooth.map((v) => v / max);
+  let my = 0, op = 0;
+  const pts = [{ sec: 0, m: 0 }];
+  for (const e of evs) {
+    if (e.team === "me") my += e.pts;
+    else op += e.pts;
+    const last = pts[pts.length - 1];
+    if (last.sec === e.sec) last.m = my - op;
+    else pts.push({ sec: e.sec, m: my - op });
+  }
+  const endSec = Math.max(2400, pts[pts.length - 1]?.sec || 0);
+  if (pts[pts.length - 1].sec < endSec) pts.push({ sec: endSec, m: pts[pts.length - 1].m });
+  return pts;
 }
 
-const GameFlow = ({ flow, opp, uid = "flow" }) => {
+function marginAt(flow, sec) {
+  let m = 0;
+  for (const p of flow) {
+    if (p.sec <= sec) m = p.m;
+    else break;
+  }
+  return m;
+}
+
+function traitMarkerCopy(t, oppN) {
+  const def = TRAIT_DEFS[t.trait];
+  const pool = t.pos ? def?.recapPos : def?.recapNeg;
+  const qn = ["first", "second", "third", "fourth"][t.q] || "late";
+  const story = (pool?.[0] || t.note || def?.desc || "")
+    .replaceAll("{player}", t.player)
+    .replaceAll("{qn}", qn)
+    .replaceAll("{oppN}", oppN);
+  return {
+    title: t.label,
+    sub: `${t.player} · ${QN[t.q] || "OT"}`,
+    body: story,
+  };
+}
+
+function scoreDevSegments(flow, x, y, myC, oc) {
+  const segs = [];
+  let d = "", color = null;
+  const flush = () => { if (d && color) segs.push({ d, color }); d = ""; };
+  const col = (m, fallback) => (m > 0 ? myC : m < 0 ? oc : fallback);
+  for (let i = 0; i < flow.length - 1; i++) {
+    const a = flow[i], b = flow[i + 1];
+    const x0 = x(a.sec), y0 = y(a.m), x1 = x(b.sec), y1 = y(b.m);
+    const hC = col(a.m, col(b.m, myC));
+    if (color !== hC) { flush(); color = hC; d = `M${x0.toFixed(1)},${y0.toFixed(1)}`; }
+    else if (!d) d = `M${x0.toFixed(1)},${y0.toFixed(1)}`;
+    d += `H${x1.toFixed(1)}`;
+    if (a.m === b.m) continue;
+    if ((a.m > 0 && b.m < 0) || (a.m < 0 && b.m > 0)) {
+      const midY = y(0);
+      d += `V${midY.toFixed(1)}`;
+      flush();
+      color = col(b.m, hC);
+      d = `M${x1.toFixed(1)},${midY.toFixed(1)}V${y1.toFixed(1)}`;
+    } else {
+      const vC = col(b.m, hC);
+      if (color !== vC) { flush(); color = vC; d = `M${x1.toFixed(1)},${y0.toFixed(1)}`; }
+      d += `V${y1.toFixed(1)}`;
+    }
+  }
+  flush();
+  return segs;
+}
+
+function flowYDomain(flow) {
+  const ms = flow.length ? flow.map((p) => p.m) : [0];
+  const dataMin = Math.min(0, ...ms);
+  const dataMax = Math.max(0, ...ms);
+  const span = Math.max(8, dataMax - dataMin);
+  const step = span > 50 ? 10 : 5;
+  const pad = step / 2;
+  let yMin = Math.floor((dataMin - (dataMin < 0 ? pad : 0)) / step) * step;
+  let yMax = Math.ceil((dataMax + (dataMax > 0 ? pad : 0)) / step) * step;
+  yMin = Math.min(yMin, -10); // keep a negative band so 0 isn't glued to the floor
+  yMax = Math.max(yMax, 0);
+  if (yMax === yMin) { yMin = -10; yMax = step; }
+  if (dataMax > 0 && yMax <= dataMax) yMax += step;
+  if (dataMin < 0 && yMin >= dataMin) yMin -= step;
+  return { yMin, yMax, step };
+}
+
+const GameFlow = ({ flow, opp, traits = [] }) => {
+  const [hover, setHover] = useState(null);
   const oc = oppColor(opp);
-  const W = 560, H = 150, mid = H / 2, pad = 6;
-  const x = (i) => pad + (i / (flow.length - 1)) * (W - pad * 2);
-  const y = (v) => mid - v * (mid - pad);
-  const line = flow.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const area = `${line} L${x(flow.length - 1).toFixed(1)},${mid} L${x(0).toFixed(1)},${mid} Z`;
+  const myC = "#E8465A";
+  const oppN = `${opp.name} '${opp.season.slice(2)}`;
+  const W = 560, H = 188;
+  const left = 32, right = 10, top = 10, bot = 24;
+  const plotW = W - left - right, plotH = H - top - bot;
+  const maxSec = Math.max(2400, flow[flow.length - 1]?.sec || 2400);
+  const { yMin, yMax, step } = flowYDomain(flow);
+  const yRange = yMax - yMin || 1;
+  const x = (sec) => left + (sec / maxSec) * plotW;
+  const y = (m) => top + ((yMax - m) / yRange) * plotH;
+  const midY = y(0);
+  const periods = Math.max(4, Math.ceil(maxSec / 600));
+  const yTicks = [];
+  for (let t = yMax; t >= yMin - 0.001; t -= step) yTicks.push(t);
+  const segs = scoreDevSegments(flow, x, y, myC, oc);
+  const markers = (traits || []).map((t, i) => {
+    const sec = Math.min(maxSec - 30, Math.max(30, (t.q + 0.55) * 600 + i * 36));
+    const m = marginAt(flow, sec);
+    const copy = traitMarkerCopy(t, oppN);
+    return { ...t, cx: x(sec), cy: y(m), copy };
+  });
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
-      <defs>
-        <clipPath id={`${uid}Top`}><rect x="0" y="0" width={W} height={mid} /></clipPath>
-        <clipPath id={`${uid}Bot`}><rect x="0" y={mid} width={W} height={mid} /></clipPath>
-      </defs>
-      {[1, 2, 3].map((q) => (
-        <line key={q} x1={pad + (q / 4) * (W - pad * 2)} x2={pad + (q / 4) * (W - pad * 2)}
-          y1="0" y2={H} stroke="#232b3d" strokeDasharray="4 4" />
-      ))}
-      <path d={area} fill="#E8465A" opacity="0.75" clipPath={`url(#${uid}Top)`} />
-      <path d={area} fill={oc} opacity="0.75" clipPath={`url(#${uid}Bot)`} />
-      <path d={line} fill="none" stroke="#EAF0F7" strokeWidth="1.4" opacity="0.8" />
-      <line x1="0" x2={W} y1={mid} y2={mid} stroke="#5f6b7d" strokeWidth="1" />
-    </svg>
+    <div className="scoreDev">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
+        {Array.from({ length: periods }, (_, q) => {
+          const x0 = x(q * 600), x1 = x(Math.min(maxSec, (q + 1) * 600));
+          return (
+            <rect key={q} x={x0} y={top} width={Math.max(0, x1 - x0)} height={plotH}
+              fill={q % 2 === 0 ? "rgba(255,255,255,.03)" : "transparent"} />
+          );
+        })}
+        {yTicks.map((t) => (
+          <g key={t}>
+            <line x1={left} x2={W - right} y1={y(t)} y2={y(t)}
+              stroke={t === 0 ? "#5f6b7d" : "#232b3d"} strokeWidth={t === 0 ? 1.25 : 1} />
+            <text x={left - 6} y={y(t) + 3.5} textAnchor="end"
+              fill="#5f6b7d" fontSize="10" fontFamily="Saira Condensed, sans-serif"
+              fontStyle="italic" fontWeight="700">{t}</text>
+          </g>
+        ))}
+        {Array.from({ length: periods - 1 }, (_, i) => (
+          <line key={`p${i}`} x1={x((i + 1) * 600)} x2={x((i + 1) * 600)}
+            y1={top} y2={top + plotH} stroke="#2a3348" strokeDasharray="3 4" />
+        ))}
+        {segs.map((s, i) => (
+          <path key={i} d={s.d} fill="none" stroke={s.color} strokeWidth="2.2" strokeLinejoin="miter" strokeLinecap="square" />
+        ))}
+        <line x1={left} x2={W - right} y1={midY} y2={midY} stroke="#8fa0b8" strokeWidth="1" opacity="0.55" />
+        {Array.from({ length: periods }, (_, q) => {
+          const label = q < 4 ? `Q${q + 1}` : `OT${q - 3}`;
+          const cx = (x(q * 600) + x(Math.min(maxSec, (q + 1) * 600))) / 2;
+          return (
+            <text key={label} x={cx} y={H - 6} textAnchor="middle"
+              fill="#5f6b7d" fontSize="10" fontFamily="Saira Condensed, sans-serif"
+              fontWeight="700" letterSpacing="0.12em">{label}</text>
+          );
+        })}
+        {markers.map((mk, i) => {
+          const fill = mk.pos ? "#7ee2a8" : "#f08a8a";
+          return (
+            <g key={`${mk.trait}-${i}`} className="traitDot"
+              onMouseEnter={() => setHover(mk)} onMouseLeave={() => setHover(null)}
+              onFocus={() => setHover(mk)} onBlur={() => setHover(null)}
+              tabIndex={0} style={{ cursor: "pointer" }}>
+              <circle cx={mk.cx} cy={mk.cy} r="9" fill="transparent" />
+              <circle cx={mk.cx} cy={mk.cy} r="5.5" fill={fill} stroke="#0b0e15" strokeWidth="2" />
+              <circle cx={mk.cx} cy={mk.cy} r="2" fill="#fff" />
+              <title>{`${mk.copy.title} — ${mk.copy.body}`}</title>
+            </g>
+          );
+        })}
+      </svg>
+      {hover && (
+        <div className={`traitTip ${hover.cy < H * 0.38 ? "traitTipBelow" : ""}`} role="tooltip"
+          style={{ left: `${Math.min(78, Math.max(22, (hover.cx / W) * 100))}%`, top: `${(hover.cy / H) * 100}%` }}>
+          <div className="traitTipLabel" style={{ color: hover.pos ? "#7ee2a8" : "#f08a8a" }}>{hover.copy.title}</div>
+          <div className="traitTipSub">{hover.copy.sub}</div>
+          <div className="traitTipBody">{hover.copy.body}</div>
+        </div>
+      )}
+    </div>
   );
 };
 function significantTraitRecap(fired, oppN) {
@@ -970,6 +1104,42 @@ const css = `
 .btnG{background:#1a2132;color:#c6d2e3;border:1px solid #303c56;transition:filter .1s;}
 .btnG:hover{filter:brightness(1.25);} .btnG:active{transform:skewX(-8deg) scale(.97);}
 .btnDead{background:#12161f;color:#414c60;border:1px solid #1e2635;cursor:not-allowed;}
+.segCtrl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:#1a2132;border:1px solid #303c56;
+  overflow:visible;}
+.segCtrl button{position:relative;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:0;border-right:1px solid #303c56;color:#c6d2e3;
+  padding:.625rem .4rem;min-height:47px;cursor:pointer;white-space:nowrap;
+  transition:filter .1s ease, transform .08s ease;}
+.segCtrl button:last-child{border-right:0;}
+.segCtrl button:hover{filter:brightness(1.2);z-index:2;}
+.segCtrl button:active{transform:scale(.96);}
+.segCtrl button.active{background:linear-gradient(180deg,#ff5468,#e8465a 55%,#c92840);color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35);}
+.segCtrl .unskew{white-space:nowrap;}
+.segTip{position:absolute;left:50%;bottom:calc(100% + 8px);transform:skewX(8deg) translateX(-50%);
+  width:max-content;max-width:240px;padding:.45rem .6rem;pointer-events:none;
+  background:#0f1420;border:1px solid #303c56;color:#c6d2e3;
+  font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:700;
+  font-size:11px;letter-spacing:.04em;text-transform:uppercase;line-height:1.25;text-align:center;
+  white-space:normal;opacity:0;visibility:hidden;transition:opacity .12s ease, visibility .12s ease;
+  box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:5;}
+.segTip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
+  border:5px solid transparent;border-top-color:#303c56;}
+.segCtrl button:hover .segTip,.segCtrl button:focus-visible .segTip{opacity:1;visibility:visible;}
+.scoreDev{position:relative;overflow:visible;}
+.traitTip{position:absolute;transform:translate(-50%,calc(-100% - 12px));width:max-content;max-width:220px;
+  padding:.55rem .7rem;pointer-events:none;z-index:6;
+  background:#0f1420;border:1px solid #303c56;box-shadow:0 8px 22px rgba(0,0,0,.5);}
+.traitTip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
+  border:5px solid transparent;border-top-color:#303c56;}
+.traitTip.traitTipBelow{transform:translate(-50%,14px);}
+.traitTip.traitTipBelow::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:#303c56;}
+.traitTipLabel{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
+  font-size:12px;letter-spacing:.04em;text-transform:uppercase;line-height:1.2;}
+.traitTipSub{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;color:#5f6b7d;margin-top:.15rem;}
+.traitTipBody{font-family:'Saira',sans-serif;font-size:12px;line-height:1.35;color:#c6d2e3;margin-top:.35rem;
+  text-wrap:pretty;}
 .scoreNum{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
   color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.7);}
 .rowHover{transition:background .1s;} .rowHover:hover{background:rgba(232,70,90,.10);}
@@ -1001,6 +1171,14 @@ const css = `
 `;
 
 const BtnArrow = () => <span className="whitespace-nowrap">{"\u00A0"}▸</span>;
+const BallIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"
+    style={{ display: "inline-block", verticalAlign: "-0.12em", marginRight: "0.35em" }}>
+    <circle cx="12" cy="12" r="9.25" fill="none" stroke="currentColor" strokeWidth="1.75" />
+    <path d="M12 2.75v18.5M3.4 12h17.2M5.2 6.2c2.4 1.9 5.1 2.85 6.8 2.85S16.4 8.1 18.8 6.2M5.2 17.8c2.4-1.9 5.1-2.85 6.8-2.85s4.4.95 6.8 2.85"
+      fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
 
 function roundShortLabel(i, round) {
   if (round === DREAM_TEAM_ROUND) return "DREAM";
@@ -1561,15 +1739,18 @@ export default function PerfectSweep() {
                 );
               })}
             </div>
-            {/* system + go */}
+            {/* tactic + go */}
             <div className="flex flex-wrap items-center gap-2 mt-4">
-              <span className="eyebrow mr-1">SYSTEM</span>
-              {STYLES.map((st) => (
-                <button key={st.id} onClick={() => setStyle(st)} title={st.desc}
-                  className={`skew chip dsp px-4 py-1.5 text-sm ${style.id === st.id ? "btnP" : "btnG"}`}>
-                  <span className="unskew">{st.label}</span>
-                </button>
-              ))}
+              <span className="eyebrow mr-1">TACTIC</span>
+              <div className="skew segCtrl flex-1 min-w-[260px] max-w-md">
+                {STYLES.map((st) => (
+                  <button key={st.id} onClick={() => setStyle(st)} title={st.tip}
+                    className={`dsp text-xs sm:text-sm ${style.id === st.id ? "active" : ""}`}>
+                    <span className="unskew whitespace-nowrap">{st.label}</span>
+                    <span className="segTip" aria-hidden="true">{st.tip}</span>
+                  </button>
+                ))}
+              </div>
               <div className="flex-1" />
               <button disabled={filled < 5} onClick={startTournament}
                 className={`skew dsp9 px-7 py-2.5 text-lg ${filled === 5 ? "btnP" : "btnDead"}`}>
@@ -1579,41 +1760,52 @@ export default function PerfectSweep() {
           </div>
 
           {/* roll controls */}
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex flex-col gap-3 mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="eyebrow mr-1 inline-flex items-center gap-1.5" title="Spend on nation or year, in any combination">
+                  Not feeling it?{" "}
+                  <span className="text-lg leading-none" aria-hidden="true" style={{ letterSpacing: 0 }}>⟳</span>
+                  {" "}Swap{" "}
+                  <b style={{ color: swapsLeft ? "#E8465A" : "#5f6b7d" }}>{swapsLeft}×</b>
+                </span>
+                <button onClick={switchNation} disabled={!swapsLeft || !nationPool.length || fiveSet}
+                  title={fiveSet ? "Starting five is set"
+                    : !swapsLeft ? "No swaps left this run"
+                    : !nationPool.length ? `No other nation at World Cup ${cur?.season}`
+                    : `Different nation, same year (${cur?.season}) — uses one swap`}
+                  className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !nationPool.length || fiveSet) ? "btnDead" : "btnG"}`}>
+                  <span className="unskew inline-flex items-center justify-center gap-1 w-full">
+                    <span className="text-lg leading-none" aria-hidden="true">⟳</span>
+                    <span>NATION</span>
+                  </span>
+                </button>
+                <button onClick={switchYear} disabled={!swapsLeft || !yearPool.length || fiveSet}
+                  title={fiveSet ? "Starting five is set"
+                    : !swapsLeft ? "No swaps left this run"
+                    : !yearPool.length ? `${cur?.name} has only one squad in the deck`
+                    : `Same nation (${cur?.name}), different World Cup — uses one swap`}
+                  className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !yearPool.length || fiveSet) ? "btnDead" : "btnG"}`}>
+                  <span className="unskew inline-flex items-center justify-center gap-3.5 w-full">
+                    <span className="text-lg leading-none" aria-hidden="true">⟳</span>
+                    <span>YEAR</span>
+                  </span>
+                </button>
+              </div>
+              <button onClick={roll} disabled={!canRoll}
+                title={fiveSet ? "Starting five is set — play the World Cup"
+                  : canRoll ? "Roll a new squad"
+                  : "Sign a player from this squad first — or spend a swap"}
+                className={`skew chip dsp9 px-6 py-2.5 tracking-wide ${canRoll ? "btnP" : "btnDead"}`}>
+                <span className="unskew"><BallIcon />ROLL AGAIN</span>
+              </button>
+            </div>
             <div className="eyebrow">
               {fiveSet
                 ? `STARTING FIVE SET — TIP OFF WHEN READY · ROLL #${rolls}`
                 : canRoll
                   ? `ROLLED SQUAD — PICK WHO WAS ACTUALLY THERE · ROLL #${rolls}`
                   : `SIGN ONE PLAYER FROM THIS SQUAD TO UNLOCK THE NEXT ROLL · ROLL #${rolls}`}
-            </div>
-            <div className="flex gap-2 items-center">
-              <span className="eyebrow" title="Spend on nation or year, in any combination">
-                SWAPS <b style={{ color: swapsLeft ? "#E8465A" : "#5f6b7d" }}>{swapsLeft}×</b>
-              </span>
-              <button onClick={switchNation} disabled={!swapsLeft || !nationPool.length || fiveSet}
-                title={fiveSet ? "Starting five is set"
-                  : !swapsLeft ? "No swaps left this run"
-                  : !nationPool.length ? `No other nation at World Cup ${cur?.season}`
-                  : `Different nation, same year (${cur?.season}) — uses one swap`}
-                className={`skew chip dsp px-3 py-1.5 text-sm ${(!swapsLeft || !nationPool.length || fiveSet) ? "btnDead" : "btnG"}`}>
-                <span className="unskew">⇄ NATION</span>
-              </button>
-              <button onClick={switchYear} disabled={!swapsLeft || !yearPool.length || fiveSet}
-                title={fiveSet ? "Starting five is set"
-                  : !swapsLeft ? "No swaps left this run"
-                  : !yearPool.length ? `${cur?.name} has only one squad in the deck`
-                  : `Same nation (${cur?.name}), different World Cup — uses one swap`}
-                className={`skew chip dsp px-3 py-1.5 text-sm ${(!swapsLeft || !yearPool.length || fiveSet) ? "btnDead" : "btnG"}`}>
-                <span className="unskew">⟳ YEAR</span>
-              </button>
-              <button onClick={roll} disabled={!canRoll}
-                title={fiveSet ? "Starting five is set — play the World Cup"
-                  : canRoll ? "Roll a new squad"
-                  : "Sign a player from this squad first — or spend a swap"}
-                className={`skew chip dsp9 px-5 py-1.5 ${canRoll ? "btnP" : "btnDead"}`}>
-                <span className="unskew">🏀 ROLL AGAIN</span>
-              </button>
             </div>
           </div>
 
@@ -1761,19 +1953,22 @@ export default function PerfectSweep() {
                     <div onClick={() => setOpenFlow((o) => ({ ...o, [i]: !o[i] }))}
                       className="rowHover flex items-center justify-between px-4 py-2 cursor-pointer"
                       style={{ borderTop: "1px solid #1c2333" }}>
-                      <span className="eyebrow">📈 MOMENTUM — GAME FLOW</span>
+                      <span className="eyebrow">SCORING DEVELOPMENT</span>
                       <span className="dsp text-sm whitespace-nowrap shrink-0" style={{ color: "#5f6b7d" }}>{openFlow[i] ? "▲\u00A0HIDE" : "▼\u00A0SHOW"}</span>
                     </div>
                     {openFlow[i] && (
                       <div className="px-3 pb-3 pop">
-                        <GameFlow flow={g.flow} opp={g.opp} uid={`flow-${i}`} />
-                        <div className="flex justify-between px-1 text-[10px]" style={{ color: "#5f6b7d" }}>
-                          <span>Q1</span><span>Q2</span><span>Q3</span><span>Q4</span>
+                        <div className="flex gap-4 px-1 mb-1 text-[11px] flex-wrap justify-end">
+                          <span className="flex items-center gap-1.5" style={{ color: "#E8465A" }}>
+                            <span style={{ width: 10, height: 10, background: "#E8465A", display: "inline-block" }} />
+                            YOUR FIVE
+                          </span>
+                          <span className="flex items-center gap-1.5" style={{ color: oppColor(g.opp) }}>
+                            <span style={{ width: 10, height: 10, background: oppColor(g.opp), display: "inline-block" }} />
+                            {g.opp.name.toUpperCase()} '{g.opp.season.slice(2)}
+                          </span>
                         </div>
-                        <div className="flex gap-4 px-1 mt-1 text-[11px] flex-wrap">
-                          <span style={{ color: "#E8465A" }}>▬ YOUR FIVE</span>
-                          <span style={{ color: oppColor(g.opp) }}>▬ {g.opp.name.toUpperCase()} '{g.opp.season.slice(2)}</span>
-                        </div>
+                        <GameFlow flow={g.flow} opp={g.opp} traits={g.traitFired} />
                       </div>
                     )}
                   </>
