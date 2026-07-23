@@ -1120,7 +1120,7 @@ const css = `
   overflow:visible;}
 .segCtrl button{position:relative;display:flex;align-items:center;justify-content:center;
   background:transparent;border:0;border-right:1px solid #303c56;color:#c6d2e3;
-  padding:.625rem .4rem;min-height:47px;cursor:pointer;white-space:nowrap;
+  padding:.3rem .4rem;min-height:34px;cursor:pointer;white-space:nowrap;
   transition:filter .1s ease, transform .08s ease;}
 .segCtrl button:last-child{border-right:0;}
 .segCtrl button:hover{filter:brightness(1.2);z-index:2;}
@@ -1749,7 +1749,7 @@ export default function PerfectSweep() {
                 );
               })}
             </div>
-            {/* tactic + go */}
+            {/* tactic */}
             <div className="flex flex-wrap items-center gap-2 mt-4">
               <span className="eyebrow mr-1">TACTIC</span>
               <div className="skew segCtrl flex-1 min-w-[260px] max-w-md">
@@ -1761,63 +1761,69 @@ export default function PerfectSweep() {
                   </button>
                 ))}
               </div>
-              <div className="flex-1" />
-              <button disabled={filled < 5} onClick={startTournament}
-                className={`skew dsp9 px-7 py-2.5 text-lg ${filled === 5 ? "btnP" : "btnDead"}`}>
-                <span className="unskew">PLAY THE WORLD CUP<BtnArrow /></span>
-              </button>
             </div>
           </div>
 
           {/* roll controls */}
           <div className="flex flex-col gap-3 mb-4">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="eyebrow mr-1 inline-flex items-center gap-1.5" title="Spend on nation or year, in any combination">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-4">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className="eyebrow inline-flex items-center gap-1.5" title="Spend on nation or year, in any combination">
                   Not feeling it?{" "}
                   <span className="text-lg leading-none" aria-hidden="true" style={{ letterSpacing: 0 }}>⟳</span>
                   {" "}Swap{" "}
                   <b style={{ color: swapsLeft ? "#E8465A" : "#5f6b7d" }}>{swapsLeft}×</b>
                 </span>
-                <button onClick={switchNation} disabled={!swapsLeft || !nationPool.length || fiveSet || pickedThisRoll}
-                  title={fiveSet ? "Starting five is set"
-                    : pickedThisRoll ? "Already signed this roll — roll for the next squad"
-                    : !swapsLeft ? "No swaps left this run"
-                    : !nationPool.length ? `No other nation at World Cup ${cur?.season}`
-                    : `Different nation, same year (${cur?.season}) — uses one swap`}
-                  className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !nationPool.length || fiveSet || pickedThisRoll) ? "btnDead" : "btnG"}`}>
-                  <span className="unskew inline-flex items-center justify-center gap-1 w-full">
-                    <span className="text-lg leading-none" aria-hidden="true">⟳</span>
-                    <span>NATION</span>
-                  </span>
-                </button>
-                <button onClick={switchYear} disabled={!swapsLeft || !yearPool.length || fiveSet || pickedThisRoll}
-                  title={fiveSet ? "Starting five is set"
-                    : pickedThisRoll ? "Already signed this roll — roll for the next squad"
-                    : !swapsLeft ? "No swaps left this run"
-                    : !yearPool.length ? `${cur?.name} has only one squad in the deck`
-                    : `Same nation (${cur?.name}), different World Cup — uses one swap`}
-                  className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !yearPool.length || fiveSet || pickedThisRoll) ? "btnDead" : "btnG"}`}>
-                  <span className="unskew inline-flex items-center justify-center gap-3.5 w-full">
-                    <span className="text-lg leading-none" aria-hidden="true">⟳</span>
-                    <span>YEAR</span>
-                  </span>
-                </button>
+                {/* NATION + YEAR stay on one row — never wrap apart */}
+                <div className="flex flex-nowrap items-center gap-2 shrink-0">
+                  <button onClick={switchNation} disabled={!swapsLeft || !nationPool.length || fiveSet || pickedThisRoll}
+                    title={fiveSet ? "Starting five is set"
+                      : pickedThisRoll ? "Already signed this roll — roll for the next squad"
+                      : !swapsLeft ? "No swaps left this run"
+                      : !nationPool.length ? `No other nation at World Cup ${cur?.season}`
+                      : `Different nation, same year (${cur?.season}) — uses one swap`}
+                    className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !nationPool.length || fiveSet || pickedThisRoll) ? "btnDead" : "btnG"}`}>
+                    <span className="unskew inline-flex items-center justify-center gap-1 w-full">
+                      <span className="text-lg leading-none" aria-hidden="true">⟳</span>
+                      <span>NATION</span>
+                    </span>
+                  </button>
+                  <button onClick={switchYear} disabled={!swapsLeft || !yearPool.length || fiveSet || pickedThisRoll}
+                    title={fiveSet ? "Starting five is set"
+                      : pickedThisRoll ? "Already signed this roll — roll for the next squad"
+                      : !swapsLeft ? "No swaps left this run"
+                      : !yearPool.length ? `${cur?.name} has only one squad in the deck`
+                      : `Same nation (${cur?.name}), different World Cup — uses one swap`}
+                    className={`skew chip dsp px-4 py-2.5 text-sm tracking-wide min-w-[6.75rem] ${(!swapsLeft || !yearPool.length || fiveSet || pickedThisRoll) ? "btnDead" : "btnG"}`}>
+                    <span className="unskew inline-flex items-center justify-center gap-3.5 w-full">
+                      <span className="text-lg leading-none" aria-hidden="true">⟳</span>
+                      <span>YEAR</span>
+                    </span>
+                  </button>
+                </div>
               </div>
-              <button onClick={roll} disabled={!canRoll}
-                title={fiveSet ? "Starting five is set — play the World Cup"
+              <button
+                onClick={fiveSet ? startTournament : roll}
+                disabled={!fiveSet && !canRoll}
+                title={fiveSet ? "Starting five is set — tip off"
                   : canRoll ? "Roll a new squad"
                   : "Sign a player from this squad first — or spend a swap"}
-                className={`skew chip dsp9 px-6 py-2.5 tracking-wide ${canRoll ? "btnP" : "btnDead"}`}>
-                <span className="unskew"><BallIcon />ROLL AGAIN</span>
+                className={`skew chip dsp9 px-6 py-2.5 tracking-wide w-full sm:w-auto ${fiveSet || canRoll ? "btnP" : "btnDead"}`}>
+                <span className="unskew inline-flex items-center justify-center w-full">
+                  {fiveSet
+                    ? <>PLAY THE WORLD CUP<BtnArrow /></>
+                    : <><BallIcon />ROLL AGAIN</>}
+                </span>
               </button>
             </div>
             <div className="eyebrow">
               {fiveSet
-                ? `STARTING FIVE SET — TIP OFF WHEN READY · ROLL #${rolls}`
-                : canRoll
-                  ? `ROLLED SQUAD — PICK WHO WAS ACTUALLY THERE · ROLL #${rolls}`
-                  : `SIGN ONE PLAYER FROM THIS SQUAD TO UNLOCK THE NEXT ROLL · ROLL #${rolls}`}
+                ? "STARTING FIVE SET — TIP OFF WHEN READY"
+                : pickedThisRoll
+                  ? "PLAYER SIGNED — ROLL AGAIN FOR THE NEXT SQUAD"
+                  : canRoll
+                    ? "NOBODY LEFT TO SIGN HERE — ROLL FOR THE NEXT SQUAD"
+                    : "SIGN ONE PLAYER TO UNLOCK THE NEXT ROLL"}
             </div>
           </div>
 
