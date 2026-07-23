@@ -1689,9 +1689,7 @@ export default function PerfectSweep() {
             ROLL THE BALL. DRAFT YOUR DREAM NATIONAL FIVE.
           </h1>
           <p className="mt-4 text-base max-w-xl mx-auto" style={{ color: "#93a1b5" }}>
-            Each roll deals one national team from a Basketball World Cup — Yugoslavia '90, USA '94, Argentina '02,
-            Germany '23. Draft a star who was actually there, pick a system, and run a full World Cup:
-            the real FIBA road: group stage, 2nd round with carried-over results, then quarterfinal to Final. The perfect mark: <b style={{ color: "#ff8b98" }}>win all eight by 10+.</b>
+            Roll legendary World Cup squads, draft your five, and chase the perfect mark: <b style={{ color: "#ff8b98" }}>win all eight by 10+.</b>
           </p>
           <div className="flex justify-center gap-3 mt-8 flex-wrap">
             {[["01", "ROLL", "draw nations & years"], ["02", "DRAFT", "one star per position"], ["03", "SWEEP", "8 wins, all double digits"]].map(([n, t, d]) => (
