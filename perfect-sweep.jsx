@@ -2370,6 +2370,7 @@ export default function PerfectSweep() {
           nick,
           country: hallCountry,
           score: runStats.marginScore,
+          ovr: runStats.ovr,
           tournamentMargins: runStats.margins,
           dreamMargin: runStats.dreamMargin,
         }),
@@ -3469,11 +3470,12 @@ export default function PerfectSweep() {
             <div className="panel overflow-hidden">
               <div
                 className="grid gap-2 px-4 py-2 eyebrow"
-                style={{ gridTemplateColumns: "2.5rem 1fr 1fr 4rem", color: "#7d8ba0", borderBottom: "1px solid #232b3d" }}
+                style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", color: "#7d8ba0", borderBottom: "1px solid #232b3d" }}
               >
                 <span>#</span>
                 <span>NICK</span>
                 <span>COUNTRY</span>
+                <span className="text-right">OVR</span>
                 <span className="text-right">SCORE</span>
               </div>
               {lbEntries.map((e) => {
@@ -3482,13 +3484,16 @@ export default function PerfectSweep() {
                   <div
                     key={`${e.rank}-${e.nick}-${e.score}`}
                     className="grid gap-2 px-4 py-3 items-center text-sm"
-                    style={{ gridTemplateColumns: "2.5rem 1fr 1fr 4rem", borderBottom: "1px solid #1a2233" }}
+                    style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", borderBottom: "1px solid #1a2233" }}
                   >
                     <span className="dsp9" style={{ color: e.rank <= 3 ? "#E8465A" : "#7d8ba0" }}>{e.rank}</span>
                     <span className="dsp truncate" style={{ color: "#EAF0F7" }}>{e.nick}</span>
                     <span style={{ color: "#c6d2e3" }}>
                       <span className="mr-1.5" aria-hidden>{c?.flag || "🌍"}</span>
                       {c?.name || e.country}
+                    </span>
+                    <span className="dsp9 text-right" style={{ color: e.ovr != null ? "#c6d2e3" : "#5f6b7d" }}>
+                      {e.ovr != null ? e.ovr : "—"}
                     </span>
                     <span className="dsp9 text-right" style={{ color: "#7ee2a8" }}>{e.score}</span>
                   </div>

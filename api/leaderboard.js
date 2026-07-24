@@ -18,12 +18,41 @@ function sumMargins(tournamentMargins, dreamMargin) {
   return tournamentMargins.reduce((a, b) => a + b, 0) + dreamMargin;
 }
 
+function parseOvr(raw) {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n)) return null;
+  return n;
+}
+
+/** Higher margin score wins; ties → lower OVR, then earlier submission. */
+function compareHallEntries(a, b) {
+  if (b.score !== a.score) return b.score - a.score;
+  const ovrA = a.ovr ?? 100;
+  const ovrB = b.ovr ?? 100;
+  if (ovrA !== ovrB) return ovrA - ovrB;
+  const tA = a.at ? Date.parse(a.at) : Number.POSITIVE_INFINITY;
+  const tB = b.at ? Date.parse(b.at) : Number.POSITIVE_INFINITY;
+  if (tA !== tB) return tA - tB;
+  return String(a.id).localeCompare(String(b.id));
+}
+
+/** Composite ZSET score so Redis order matches compareHallEntries (higher = better). */
+function rankScore(score, ovr, atIso) {
+  const ovrPart = 100 - (Number.isInteger(ovr) ? ovr : 100); // lower OVR → larger
+  const FAR_SEC = 4_102_444_800; // ~2100-01-01
+  const tSec = Math.floor((atIso ? Date.parse(atIso) : Date.now()) / 1000);
+  const timePart = Math.max(0, FAR_SEC - tSec) / FAR_SEC; // earlier → larger
+  return score * 1_000_000 + ovrPart * 1_000 + timePart * 999;
+}
+
 function bad(res, status, error) {
   return res.status(status).json({ error });
 }
 
 async function handleGet(res) {
-  const rows = await kv.zrange(SCORES_KEY, 0, TOP_N - 1, { rev: true, withScores: true });
+  // Pull a buffer so equal-score ties near the cutoff can be re-ordered correctly.
+  const rows = await kv.zrange(SCORES_KEY, 0, TOP_N * 4 - 1, { rev: true, withScores: true });
   // withScores:true returns [member, score, member, score, ...] or objects depending on version
   const entries = [];
   if (Array.isArray(rows) && rows.length) {
@@ -36,33 +65,39 @@ async function handleGet(res) {
           nick: meta.nick,
           country: meta.country,
           score: Number(meta.score ?? row.score),
+          ovr: parseOvr(meta.ovr),
           at: meta.at || null,
         });
       }
     } else {
       for (let i = 0; i < rows.length; i += 2) {
         const id = rows[i];
-        const score = Number(rows[i + 1]);
+        const zScore = Number(rows[i + 1]);
         const meta = await kv.hgetall(`lb:entry:${id}`);
         if (!meta || !meta.nick) continue;
         entries.push({
           id,
           nick: meta.nick,
           country: meta.country,
-          score: Number(meta.score ?? score),
+          score: Number(meta.score ?? zScore),
+          ovr: parseOvr(meta.ovr),
           at: meta.at || null,
         });
       }
     }
   }
 
+  entries.sort(compareHallEntries);
+  const top = entries.slice(0, TOP_N);
+
   return res.status(200).json({
-    entries: entries.map((e, i) => ({
+    entries: top.map((e, i) => ({
       rank: i + 1,
       id: e.id,
       nick: e.nick,
       country: e.country,
       score: e.score,
+      ovr: e.ovr,
       at: e.at,
     })),
   });
@@ -103,6 +138,7 @@ async function handleDelete(req, res) {
     nick: meta.nick,
     country: meta.country,
     score: Number(meta.score),
+    ovr: parseOvr(meta.ovr),
   });
 }
 
@@ -142,13 +178,17 @@ async function handlePost(req, res) {
   if (!Number.isFinite(score) || score !== expected) {
     return bad(res, 400, "Score does not match sum of margins.");
   }
+  const ovr = Number(body.ovr);
+  if (!Number.isInteger(ovr) || ovr < 70 || ovr > 99) {
+    return bad(res, 400, "ovr must be an integer between 70 and 99.");
+  }
 
   const id = randomUUID();
   const at = new Date().toISOString();
-  await kv.hset(`lb:entry:${id}`, { nick, country, score: String(score), at });
-  await kv.zadd(SCORES_KEY, { score, member: id });
+  await kv.hset(`lb:entry:${id}`, { nick, country, score: String(score), ovr: String(ovr), at });
+  await kv.zadd(SCORES_KEY, { score: rankScore(score, ovr, at), member: id });
 
-  return res.status(201).json({ ok: true, id, rank: null, score, at });
+  return res.status(201).json({ ok: true, id, rank: null, score, ovr, at });
 }
 
 export default async function handler(req, res) {
