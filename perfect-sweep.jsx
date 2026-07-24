@@ -3501,6 +3501,13 @@ export default function PerfectSweep() {
               })}
             </div>
           )}
+
+          <button
+            className="btnP skew dsp9 text-xl px-10 py-3.5 mt-6 w-full sm:w-auto"
+            onClick={() => { reset(); roll(); setScreen("draft"); }}
+          >
+            <span className="unskew">TIP OFF — TRY TO JOIN THE HALL OF FAME<BtnArrow /></span>
+          </button>
         </div>
       )}
 
