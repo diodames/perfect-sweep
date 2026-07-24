@@ -6,12 +6,13 @@ A single-page basketball drafting game built with React and Vite. Each run, you 
 
 ## Features
 
-- Draft-based lineup building from real historical national squads, each player rated and some carrying gameplay traits (hot streaks, injuries, playoff fades, etc.)
+- Draft-based lineup building from real historical national squads (1986–2023 World Cups, including every podium side), each player rated and some carrying gameplay traits (hot streaks, injuries, playoff fades, etc.)
+- In-app Teams archive, How to Play guide, and About — browse every nation/squad in the draft pool
 - Three playstyles (Run & Gun, Balanced, Lockdown) trading off pace, offense, and defense
 - Simulated box scores, quarter-by-quarter play, and overtime resolution
 - Shareable run results encoded into a URL, so a completed run can be sent and replayed/viewed by others
 - Bonus "Face the Dream Team" round after a perfect sweep
-- Global Dream Team leaderboard (Perfect Sweep + Dream Team win), scored by sum of tournament margins + Dream Team margin
+- Global Hall of Fame leaderboard (Perfect Sweep + Dream Team win), scored by sum of tournament margins + Dream Team margin
 
 ## Getting started
 

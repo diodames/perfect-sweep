@@ -5,7 +5,7 @@ import { validateNick } from "./nickValidate.js";
 /* ============ DATA: legendary FIBA World Cup national squads ============ */
 const TEAMS = [
   { name: "USA", season: "1994", c: "#B31942", alt: "#0A3161", players: [
-    { n: 13, name: "Shaquille O'Neal", pos: "C", rt: 95, trait: "ak47" }, { n: 5, name: "Reggie Miller", pos: "SG", rt: 89 },
+    { n: 13, name: "Shaquille O'Neal", pos: "C", rt: 95, traits: ["twoWayTerror", "hackAShaq"] }, { n: 5, name: "Reggie Miller", pos: "SG", rt: 89 },
     { n: 6, name: "Shawn Kemp", pos: "PF", rt: 89 }, { n: 7, name: "Kevin Johnson", pos: "PG", rt: 87 },
     { n: 9, name: "D. Wilkins", pos: "SF", rt: 88 }, { n: 11, name: "A. Mourning", pos: "PF", rt: 88 },
   ]},
@@ -16,7 +16,7 @@ const TEAMS = [
   ]},
   { name: "USA", season: "2014", c: "#B31942", alt: "#0A3161", players: [
     { n: 4, name: "Stephen Curry", pos: "PG", rt: 92, trait: "flameThrower", traitChance: 0.12 }, { n: 13, name: "James Harden", pos: "SG", rt: 90, trait: "playoffFade" },
-    { n: 10, name: "Kyrie Irving", pos: "SG", rt: 89 }, { n: 14, name: "Anthony Davis", pos: "PF", rt: 88 },
+    { n: 10, name: "Kyrie Irving", pos: "SG", rt: 89, trait: "goesMissing" }, { n: 14, name: "Anthony Davis", pos: "PF", rt: 88 },
     { n: 11, name: "K. Thompson", pos: "SF", rt: 86 }, { n: 12, name: "D. Cousins", pos: "C", rt: 84, trait: "hotHead" },
   ]},
   { name: "USA", season: "2023", c: "#0A3161", players: [
@@ -57,7 +57,7 @@ const TEAMS = [
   { name: "Spain", season: "2006", c: "#AA151B", alt: "#F1BF00", players: [
     { n: 4, name: "Pau Gasol", pos: "PF", rt: 94, trait: "elCapitan" }, { n: 7, name: "J.C. Navarro", pos: "SG", rt: 88 },
     { n: 8, name: "José Calderón", pos: "PG", rt: 85 }, { n: 15, name: "J. Garbajosa", pos: "SF", rt: 83 },
-    { n: 13, name: "Marc Gasol", pos: "C", rt: 79 }, { n: 10, name: "Rudy Fernández", pos: "SF", rt: 80 },
+    { n: 13, name: "Marc Gasol", pos: "C", rt: 79, stretch: true }, { n: 10, name: "Rudy Fernández", pos: "SF", rt: 80 },
   ]},
   { name: "Spain", season: "2019", c: "#F1BF00", players: [
     { n: 9, name: "Ricky Rubio", pos: "PG", rt: 88 }, { n: 13, name: "Marc Gasol", pos: "C", rt: 86 },
@@ -70,7 +70,7 @@ const TEAMS = [
     { n: 5, name: "Rudy Fernández", pos: "SF", rt: 80 }, { n: 7, name: "Santi Aldama", pos: "PF", rt: 81 },
   ]},
   { name: "Germany", season: "2023", c: "#DD0000", alt: "#FFCE00", players: [
-    { n: 17, name: "D. Schröder", pos: "PG", rt: 89 }, { n: 22, name: "Franz Wagner", pos: "SF", rt: 87 },
+    { n: 17, name: "D. Schröder", pos: "PG", rt: 89, trait: "elCapitan" }, { n: 22, name: "Franz Wagner", pos: "SF", rt: 87 },
     { n: 10, name: "Daniel Theis", pos: "C", rt: 81 }, { n: 13, name: "Moritz Wagner", pos: "PF", rt: 80 },
     { n: 7, name: "J. Voigtmann", pos: "PF", rt: 78 }, { n: 32, name: "Andreas Obst", pos: "SG", rt: 79 },
   ]},
@@ -105,7 +105,7 @@ const TEAMS = [
     { n: 15, name: "R. Javtokas", pos: "PF", rt: 78 }, { n: 8, name: "R. Seibutis", pos: "SG", rt: 76 },
   ]},
   { name: "France", season: "2019", c: "#002395", players: [
-    { n: 27, name: "Rudy Gobert", pos: "C", rt: 88, trait: "greatWall", traitChance: 0.15 }, { n: 10, name: "E. Fournier", pos: "SG", rt: 85 },
+    { n: 27, name: "Rudy Gobert", pos: "C", rt: 88, traits: ["greatWall", "foulTrouble"], traitChance: 0.15 }, { n: 10, name: "E. Fournier", pos: "SG", rt: 85 },
     { n: 12, name: "Nando De Colo", pos: "PG", rt: 84 }, { n: 5, name: "Nicolas Batum", pos: "SF", rt: 83 },
     { n: 21, name: "A. Albicy", pos: "SG", rt: 77 }, { n: 15, name: "A. M'Baye", pos: "PF", rt: 76 },
   ]},
@@ -136,7 +136,7 @@ const TEAMS = [
   ]},
   { name: "Canada", season: "2023", c: "#D80621", alt: "#2C3E50", players: [
     { n: 2, name: "S. Gilgeous-Alexander", pos: "PG", rt: 93 }, { n: 24, name: "Dillon Brooks", pos: "SF", rt: 82 },
-    { n: 9, name: "RJ Barrett", pos: "SG", rt: 81 }, { n: 13, name: "Kelly Olynyk", pos: "C", rt: 80 },
+    { n: 9, name: "RJ Barrett", pos: "SG", rt: 81 }, { n: 13, name: "Kelly Olynyk", pos: "C", rt: 80, stretch: true },
     { n: 5, name: "Lu Dort", pos: "SF", rt: 79 }, { n: 4, name: "D. Powell", pos: "PF", rt: 77 },
   ]},
   { name: "China", season: "2002", c: "#DE2910", alt: "#FFD700", players: [
@@ -176,7 +176,7 @@ const TEAMS = [
   ]},
   { name: "Australia", season: "2023", c: "#FFCD00", players: [
     { n: 3, name: "Josh Giddey", pos: "PG", rt: 84 }, { n: 5, name: "Patty Mills", pos: "SG", rt: 81 },
-    { n: 34, name: "Jock Landale", pos: "C", rt: 80 }, { n: 6, name: "Josh Green", pos: "SF", rt: 78 },
+    { n: 34, name: "Jock Landale", pos: "C", rt: 80, stretch: true }, { n: 6, name: "Josh Green", pos: "SF", rt: 78 },
     { n: 7, name: "Dante Exum", pos: "SG", rt: 78 }, { n: 9, name: "X. Cooks", pos: "PF", rt: 76 },
   ]},
   { name: "Brazil", season: "2010", c: "#FFDF00", players: [
@@ -191,7 +191,7 @@ const TEAMS = [
   ]},
   { name: "China", season: "2019", c: "#DE2910", alt: "#FFD700", players: [
     { n: 11, name: "Yi Jianlian", pos: "PF", rt: 82 }, { n: 6, name: "Guo Ailun", pos: "PG", rt: 78 },
-    { n: 15, name: "Zhou Qi", pos: "C", rt: 77 }, { n: 9, name: "Zhao Rui", pos: "SG", rt: 76 },
+    { n: 15, name: "Zhou Qi", pos: "C", rt: 77, stretch: true }, { n: 9, name: "Zhao Rui", pos: "SG", rt: 76 },
     { n: 12, name: "Ding Yanyuhang", pos: "SF", rt: 77 }, { n: 5, name: "Fang Shuo", pos: "SG", rt: 74 },
   ]},
   /* --- expansion: Europe depth + Africa / Asia / Oceania coverage --- */
@@ -201,12 +201,12 @@ const TEAMS = [
     { n: 15, name: "L. Garri", pos: "PF", rt: 77 }, { n: 8, name: "M. Soragna", pos: "SG", rt: 76 },
   ]},
   { name: "Turkey", season: "2010", c: "#E30A17", players: [
-    { n: 6, name: "Hidayet Türkoğlu", pos: "SF", rt: 87, trait: "mrImportant" }, { n: 7, name: "Ömer Aşık", pos: "C", rt: 82 },
+    { n: 6, name: "Hidayet Türkoğlu", pos: "SF", rt: 87, trait: "mrImportant", traitChance: 0.05 }, { n: 7, name: "Ömer Aşık", pos: "C", rt: 82 },
     { n: 23, name: "E. İlyasova", pos: "PF", rt: 82 }, { n: 4, name: "Kerem Tunçeri", pos: "PG", rt: 79 },
     { n: 10, name: "Ömer Onan", pos: "SG", rt: 78 }, { n: 12, name: "Semih Erden", pos: "PF", rt: 77 },
   ]},
   { name: "Russia", season: "2010", c: "#0039A6", alt: "#D52B1E", players: [
-    { n: 47, name: "A. Kirilenko", pos: "SF", rt: 89, trait: "ak47" }, { n: 15, name: "V. Khryapa", pos: "PF", rt: 82 },
+    { n: 47, name: "A. Kirilenko", pos: "SF", rt: 89, trait: "theRussian" }, { n: 15, name: "V. Khryapa", pos: "PF", rt: 82 },
     { n: 11, name: "Timofey Mozgov", pos: "C", rt: 80 }, { n: 4, name: "A. Bykov", pos: "PG", rt: 78 },
     { n: 8, name: "V. Fridzon", pos: "SG", rt: 79 }, { n: 10, name: "S. Monia", pos: "SF", rt: 76 },
   ]},
@@ -247,14 +247,14 @@ const TEAMS = [
     { n: 5, name: "Victor Liz", pos: "SF", rt: 77 }, { n: 25, name: "Lester Quiñones", pos: "SG", rt: 76 },
   ]},
   { name: "Philippines", season: "2023", c: "#0038A8", alt: "#CE1126", players: [
-    { n: 6, name: "Jordan Clarkson", pos: "SG", rt: 88, trait: "flameThrower" }, { n: 15, name: "Kai Sotto", pos: "C", rt: 80 },
+    { n: 6, name: "Jordan Clarkson", pos: "SG", rt: 88, trait: "flameThrower" }, { n: 15, name: "Kai Sotto", pos: "C", rt: 80, stretch: true },
     { n: 1, name: "June Mar Fajardo", pos: "PF", rt: 79 }, { n: 7, name: "Dwight Ramos", pos: "SF", rt: 78 },
     { n: 4, name: "Kiefer Ravena", pos: "PG", rt: 77 }, { n: 23, name: "Japeth Aguilar", pos: "PF", rt: 76 },
   ]},
   { name: "Finland", season: "2023", c: "#002F6C", alt: "#FFFFFF", players: [
     { n: 23, name: "Lauri Markkanen", pos: "PF", rt: 91, trait: "unicorn" }, { n: 7, name: "Sasu Salin", pos: "SG", rt: 79 },
     { n: 18, name: "Mikael Jantunen", pos: "SF", rt: 78 }, { n: 9, name: "Edon Maxhuni", pos: "PG", rt: 77 },
-    { n: 11, name: "Alexander Madsen", pos: "C", rt: 77 }, { n: 21, name: "Shawn Huff", pos: "SF", rt: 75 },
+    { n: 11, name: "Alexander Madsen", pos: "C", rt: 77, stretch: true }, { n: 21, name: "Shawn Huff", pos: "SF", rt: 75 },
   ]},
   { name: "South Sudan", season: "2023", c: "#0F47AF", alt: "#FC0119", players: [
     { n: 0, name: "Carlik Jones", pos: "PG", rt: 84, trait: "chaosEnergy" }, { n: 32, name: "Wenyen Gabriel", pos: "PF", rt: 80 },
@@ -319,7 +319,7 @@ const TEAMS = [
   /* USA '06 — Japan WC bronze; LeBron / Wade / Melo / CP3 era before the Redeem Team */
   { name: "USA", season: "2006", c: "#B31942", alt: "#0A3161", players: [
     { n: 6, name: "LeBron James", pos: "SF", rt: 92, trait: "mrImportant" }, { n: 3, name: "Dwyane Wade", pos: "SG", rt: 91 },
-    { n: 15, name: "Carmelo Anthony", pos: "PF", rt: 88 }, { n: 13, name: "Chris Paul", pos: "PG", rt: 86 },
+    { n: 15, name: "Carmelo Anthony", pos: "PF", rt: 88, trait: "isoBlackHole" }, { n: 13, name: "Chris Paul", pos: "PG", rt: 86 },
     { n: 1, name: "Dwight Howard", pos: "C", rt: 87 }, { n: 4, name: "Chris Bosh", pos: "PF", rt: 85 },
   ]},
   /* --- complete 1986–2023 World Cup podiums (gold / silver / bronze) --- */
@@ -334,7 +334,7 @@ const TEAMS = [
     { n: 5, name: "Zoran Radović", pos: "PG", rt: 78 }, { n: 15, name: "S. Vranković", pos: "C", rt: 79 },
   ]},
   { name: "Soviet Union", season: "1990", c: "#CC0000", alt: "#D4AF37", players: [
-    { n: 9, name: "A. Volkov", pos: "PF", rt: 87, trait: "mrImportant" }, { n: 7, name: "V. Tikhonenko", pos: "SF", rt: 85 },
+    { n: 9, name: "A. Volkov", pos: "PF", rt: 87, trait: "mrImportant", traitChance: 0.10 }, { n: 7, name: "V. Tikhonenko", pos: "SF", rt: 85 },
     { n: 5, name: "S. Bazarevich", pos: "PG", rt: 84 }, { n: 10, name: "G. Vetra", pos: "SG", rt: 81 },
     { n: 14, name: "V. Goborov", pos: "C", rt: 80 }, { n: 8, name: "V. Berezhnoy", pos: "PF", rt: 77 },
   ]},
@@ -360,7 +360,7 @@ const TEAMS = [
   ]},
   { name: "USA", season: "1998", c: "#0A3161", alt: "#B31942", players: [
     { n: 4, name: "Wendell Alexis", pos: "SF", rt: 82 }, { n: 11, name: "Trajan Langdon", pos: "SG", rt: 80 },
-    { n: 15, name: "Brad Miller", pos: "C", rt: 81 }, { n: 7, name: "Jimmy King", pos: "PG", rt: 77 },
+    { n: 15, name: "Brad Miller", pos: "C", rt: 81, stretch: true }, { n: 7, name: "Jimmy King", pos: "PG", rt: 77 },
     { n: 9, name: "Gerard King", pos: "PF", rt: 78 }, { n: 12, name: "Jason Sasser", pos: "SF", rt: 76 },
   ]},
 ];
@@ -636,6 +636,14 @@ const TRAIT_DEFS = {
       "Iso after iso, nothing went down for {player}. The hero-ball heater never arrived; only airballs and empty trips.",
     ],
   },
+  isoBlackHole: {
+    label: "ISO BLACK HOLE", pos: false, chance: 0.12,
+    desc: "Ball sticks; offense stalls when he hunts",
+    recapNeg: [
+      "{player} went into iso mode and the ball never came out — the whole offense stalled around him.",
+      "One-on-one after one-on-one: {player} became a black hole and the five stopped moving.",
+    ],
+  },
   refMeltdown: {
     label: "REF MELTDOWN", pos: false, chance: 0.10,
     desc: "Argues with officials — technical energy kills the whole team's rhythm",
@@ -738,12 +746,20 @@ const TRAIT_DEFS = {
       "From the opening tip, {player} owned the rim — a Great Wall nobody could breach.",
     ],
   },
-  ak47: {
-    label: "AK-47", pos: true, chance: 0.15,
+  theRussian: {
+    label: "THE RUSSIAN", pos: true, chance: 0.15,
     desc: "Two-way lockdown midgame",
     recapPos: [
-      "{player} did the AK-47 thing — blocks, help D, and quiet points that put {oppN} in a vice.",
+      "{player} did The Russian thing — blocks, help D, and quiet points that put {oppN} in a vice.",
       "Two-way hell: {player} erased the first half for {oppN} while still finding buckets himself.",
+    ],
+  },
+  twoWayTerror: {
+    label: "TWO-WAY TERROR", pos: true, chance: 0.15,
+    desc: "Two-way lockdown midgame",
+    recapPos: [
+      "{player} was a two-way terror — paint dominance and quiet scoring that put {oppN} in a vice.",
+      "Both ends: {player} erased the first half for {oppN} while still finding buckets himself.",
     ],
   },
   connector: {
@@ -882,10 +898,10 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
       qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 1, d: 3 }]);
       add(p, id, 0, 6, "Great Wall Q1–Q2");
     }
-    if (id === "ak47" && rollTrait(chance)) {
+    if ((id === "theRussian" || id === "twoWayTerror") && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: 3 }]);
       ops = patchQ(ops, [{ q: 0, d: -2 }, { q: 1, d: -2 }]);
-      add(p, id, 1, 7, "AK-47 two-way Q1–Q2");
+      add(p, id, 1, 7, id === "theRussian" ? "The Russian two-way Q1–Q2" : "Two-way terror Q1–Q2");
     }
     if (id === "connector" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 0, d: 1 }, { q: 1, d: 1 }, { q: 2, d: 1 }, { q: 3, d: 1 }]);
@@ -914,6 +930,10 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
     if (id === "brickFactory" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -6 }, { q: 3, d: -3 }]);
       add(p, id, 2, -12, "Brick factory — hero shots clank");
+    }
+    if (id === "isoBlackHole" && rollTrait(chance)) {
+      qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -4 }]);
+      add(p, id, 2, -7, "Iso black hole — ball stuck Q2–Q3");
     }
     if (id === "refMeltdown" && rollTrait(chance)) {
       qs = patchQ(qs, [{ q: 1, d: -4 }, { q: 2, d: -4 }, { q: 3, d: -2 }]);
@@ -991,10 +1011,11 @@ function boxScore(lineup, total) {
 /* ---- play-by-play generation for animated sims ---- */
 const rndT = (a) => a[Math.floor(Math.random() * a.length)];
 
-/** Guards/wings/forwards can splash; centers only with stretch-scoring traits. */
+/** Guards/wings/forwards can splash; centers only if stretch-flagged or stretch-scoring traits. */
 function canSplashThree(p) {
   if (!p) return false;
   if (p.pos === "PG" || p.pos === "SG" || p.pos === "SF" || p.pos === "PF") return true;
+  if (p.stretch) return true;
   return hasTrait(p, "unicorn") || hasTrait(p, "theTower") || hasTrait(p, "flameThrower");
 }
 
