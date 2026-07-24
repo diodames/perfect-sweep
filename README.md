@@ -56,11 +56,28 @@ The Dream Team leaderboard needs a Redis-compatible store linked to the Vercel p
 
 Without those vars, `GET`/`POST` `/api/leaderboard` return a storage-not-configured error. The rest of the game still works.
 
+### Admin delete
+
+To remove a Hall of Fame entry, set `LB_ADMIN_SECRET` in the Vercel project env, redeploy, then:
+
+```bash
+# 1) List entries (note the id)
+curl -s https://perfectsweep.app/api/leaderboard | jq .
+
+# 2) Delete by id
+curl -X DELETE https://perfectsweep.app/api/leaderboard \
+  -H "Authorization: Bearer $LB_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"<entry-uuid>"}'
+```
+
+You can also pass the secret as `X-Admin-Secret` instead of `Authorization: Bearer …`.
+
 ## Project structure
 
 - `perfect-sweep.jsx` — game data (squads, players, traits) and all game logic/UI
 - `countries.js` — ISO country allowlist shared by client + API
-- `api/leaderboard.js` — GET/POST leaderboard (Vercel serverless + KV)
+- `api/leaderboard.js` — GET/POST/DELETE leaderboard (Vercel serverless + KV; DELETE requires `LB_ADMIN_SECRET`)
 - `main.jsx` — React entry point
 - `index.html` — page shell, meta/OG tags, favicons
 - `public/` — static assets (favicons, social share image)

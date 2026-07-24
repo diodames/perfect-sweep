@@ -59,11 +59,50 @@ async function handleGet(res) {
   return res.status(200).json({
     entries: entries.map((e, i) => ({
       rank: i + 1,
+      id: e.id,
       nick: e.nick,
       country: e.country,
       score: e.score,
       at: e.at,
     })),
+  });
+}
+
+function adminAuthorized(req) {
+  const secret = process.env.LB_ADMIN_SECRET;
+  if (!secret) return { ok: false, reason: "unconfigured" };
+  const header = req.headers.authorization || req.headers["x-admin-secret"] || "";
+  const token = typeof header === "string" && header.startsWith("Bearer ")
+    ? header.slice(7).trim()
+    : String(header).trim();
+  if (!token || token !== secret) return { ok: false, reason: "unauthorized" };
+  return { ok: true };
+}
+
+async function handleDelete(req, res) {
+  const auth = adminAuthorized(req);
+  if (auth.reason === "unconfigured") {
+    return bad(res, 503, "Admin delete is not configured.");
+  }
+  if (!auth.ok) return bad(res, 401, "Unauthorized.");
+
+  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  const id = String(body.id || req.query?.id || "").trim();
+  if (!id) return bad(res, 400, "id is required.");
+
+  const meta = await kv.hgetall(`lb:entry:${id}`);
+  await kv.zrem(SCORES_KEY, id);
+  await kv.del(`lb:entry:${id}`);
+
+  if (!meta || !meta.nick) {
+    return res.status(404).json({ error: "Entry not found.", id });
+  }
+  return res.status(200).json({
+    ok: true,
+    id,
+    nick: meta.nick,
+    country: meta.country,
+    score: Number(meta.score),
   });
 }
 
@@ -114,14 +153,15 @@ async function handlePost(req, res) {
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Secret");
 
   if (req.method === "OPTIONS") return res.status(204).end();
 
   try {
     if (req.method === "GET") return await handleGet(res);
     if (req.method === "POST") return await handlePost(req, res);
+    if (req.method === "DELETE") return await handleDelete(req, res);
     return bad(res, 405, "Method not allowed");
   } catch (err) {
     console.error("leaderboard error", err);
