@@ -1211,11 +1211,10 @@ function chunkEvents(evs, n) {
 }
 
 /* Your five is always red — keep opponents visually distinct from it.
-   If a nation's color is reddish (or too dark), swap in a contrasting accent. */
-const OPP_FALLBACKS = ["#23b4e2", "#f5a524", "#8b5cf6", "#22c55e"];
-const oppColor = (team) => {
-  if (team.alt) return team.alt;               // curated jersey-accurate contrast color
-  const hex = team.c.replace("#", "");
+   If a nation's color is reddish (or too pale for the light UI), swap in a contrasting accent. */
+const OPP_FALLBACKS = ["#009DD4", "#C08130", "#8b5cf6", "#1D8D47"];
+const colorUsable = (hexColor) => {
+  const hex = hexColor.replace("#", "");
   const r = parseInt(hex.slice(0, 2), 16) / 255, g = parseInt(hex.slice(2, 4), 16) / 255, b = parseInt(hex.slice(4, 6), 16) / 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
   let hue = 0;
@@ -1226,8 +1225,12 @@ const oppColor = (team) => {
   }
   if (hue < 0) hue += 360;
   const redHue = d > 0.15 && (hue < 22 || hue > 338); // never let an opponent read as YOUR FIVE's red
-  const tooDark = max < 0.28;
-  if (!redHue && !tooDark) return team.c;
+  const tooLight = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.72; // unreadable on white cards
+  return !redHue && !tooLight;
+};
+const oppColor = (team) => {
+  if (team.alt && colorUsable(team.alt)) return team.alt; // curated jersey-accurate contrast color
+  if (colorUsable(team.c)) return team.c;
   const i = (team.name.length + team.season.charCodeAt(3)) % OPP_FALLBACKS.length;
   return OPP_FALLBACKS[i];
 };
@@ -1322,7 +1325,7 @@ const GameFlow = ({ flow, opp, traits = [] }) => {
   const [hover, setHover] = useState(null);
   const wrapRef = useRef(null);
   const oc = oppColor(opp);
-  const myC = "#E8465A";
+  const myC = "#FF0A3C";
   const oppN = `${opp.name} '${opp.season.slice(2)}`;
   const W = 560, H = 188;
   const left = 32, right = 10, top = 10, bot = 24;
@@ -1361,44 +1364,44 @@ const GameFlow = ({ flow, opp, traits = [] }) => {
           const x0 = x(q * 600), x1 = x(Math.min(maxSec, (q + 1) * 600));
           return (
             <rect key={q} x={x0} y={top} width={Math.max(0, x1 - x0)} height={plotH}
-              fill={q % 2 === 0 ? "rgba(255,255,255,.03)" : "transparent"} />
+              fill={q % 2 === 0 ? "rgba(17,23,32,.03)" : "transparent"} />
           );
         })}
         {yTicks.map((t) => (
           <g key={t}>
             <line x1={left} x2={W - right} y1={y(t)} y2={y(t)}
-              stroke={t === 0 ? "#5f6b7d" : "#232b3d"} strokeWidth={t === 0 ? 1.25 : 1} />
+              stroke={t === 0 ? "#747679" : "#E9E9EA"} strokeWidth={t === 0 ? 1.25 : 1} />
             <text x={left - 6} y={y(t) + 3.5} textAnchor="end"
-              fill="#5f6b7d" fontSize="10" fontFamily="Saira Condensed, sans-serif"
-              fontStyle="italic" fontWeight="700">{t}</text>
+              fill="#747679" fontSize="10" fontFamily="Archivo, sans-serif"
+              fontWeight="700">{t}</text>
           </g>
         ))}
         {Array.from({ length: periods - 1 }, (_, i) => (
           <line key={`p${i}`} x1={x((i + 1) * 600)} x2={x((i + 1) * 600)}
-            y1={top} y2={top + plotH} stroke="#2a3348" strokeDasharray="3 4" />
+            y1={top} y2={top + plotH} stroke="#D8D9DA" strokeDasharray="3 4" />
         ))}
         {segs.map((s, i) => (
           <path key={i} d={s.d} fill="none" stroke={s.color} strokeWidth="2.2" strokeLinejoin="miter" strokeLinecap="square" />
         ))}
-        <line x1={left} x2={W - right} y1={midY} y2={midY} stroke="#8fa0b8" strokeWidth="1" opacity="0.55" />
+        <line x1={left} x2={W - right} y1={midY} y2={midY} stroke="#747679" strokeWidth="1" opacity="0.55" />
         {Array.from({ length: periods }, (_, q) => {
           const label = q < 4 ? `Q${q + 1}` : `OT${q - 3}`;
           const cx = (x(q * 600) + x(Math.min(maxSec, (q + 1) * 600))) / 2;
           return (
             <text key={label} x={cx} y={H - 6} textAnchor="middle"
-              fill="#5f6b7d" fontSize="10" fontFamily="Saira Condensed, sans-serif"
+              fill="#747679" fontSize="10" fontFamily="Archivo, sans-serif"
               fontWeight="700" letterSpacing="0.12em">{label}</text>
           );
         })}
         {markers.map((mk, i) => {
-          const fill = mk.pos ? "#7ee2a8" : "#f08a8a";
+          const fill = mk.pos ? "#23C459" : "#FF0A3C";
           return (
             <g key={`${mk.trait}-${i}`} className="traitDot"
               onMouseEnter={() => setHover(mk)} onMouseLeave={() => setHover(null)}
               onFocus={() => setHover(mk)} onBlur={() => setHover(null)}
               tabIndex={0} style={{ cursor: "pointer" }}>
               <circle cx={mk.cx} cy={mk.cy} r="9" fill="transparent" />
-              <circle cx={mk.cx} cy={mk.cy} r="5.5" fill={fill} stroke="#0b0e15" strokeWidth="2" />
+              <circle cx={mk.cx} cy={mk.cy} r="5.5" fill={fill} stroke="#fff" strokeWidth="2" />
               <circle cx={mk.cx} cy={mk.cy} r="2" fill="#fff" />
               <title>{`${mk.copy.title} — ${mk.copy.body}`}</title>
             </g>
@@ -1408,7 +1411,7 @@ const GameFlow = ({ flow, opp, traits = [] }) => {
       {hover && tipPos && (
         <div className={`traitTip ${tipPos.below ? "traitTipBelow" : ""}`} role="tooltip"
           style={{ left: tipPos.left, top: tipPos.top, ["--tip-shift"]: `${tipPos.shift}px` }}>
-          <div className="traitTipLabel" style={{ color: hover.pos ? "#7ee2a8" : "#f08a8a" }}>{hover.copy.title}</div>
+          <div className="traitTipLabel" style={{ color: hover.pos ? "#7BDC9B" : "#FF93A9" }}>{hover.copy.title}</div>
           <div className="traitTipSub">{hover.copy.sub}</div>
           <div className="traitTipBody">{hover.copy.body}</div>
         </div>
@@ -1472,138 +1475,144 @@ function buildStory(g, box, style) {
   return out;
 }
 
-/* ============ 2K-STYLE UI ============ */
+/* ============ FIBA-STYLE UI (World Cup 2027 palette) ============ */
 const css = `
-@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:ital,wght@0,500;0,700;0,800;1,700;1,800;1,900&family=Saira:wght@400;500;600&display=swap');
-.ps-root{font-family:'Saira',sans-serif;color:#EAF0F7;min-height:100vh;position:relative;
-  background:
-    radial-gradient(1000px 420px at 50% -120px, rgba(232,70,90,.18), transparent 60%),
-    radial-gradient(800px 500px at 90% 110%, rgba(35,180,226,.10), transparent 60%),
-    linear-gradient(180deg,#0b0e15 0%, #0a0c12 100%);}
-.ps-root::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
-  background:repeating-linear-gradient(115deg, rgba(255,255,255,.016) 0 2px, transparent 2px 90px);}
-.dsp{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
-  text-transform:uppercase;letter-spacing:.02em;}
-.dsp9{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
+.ps-root{
+  /* WC2027 design tokens */
+  --ink:#111720; --ink-2:#21262E; --ink-3:#2E333B;
+  --muted:#595A5C; --muted-2:#747679;
+  --border:#E9E9EA; --border-2:#D8D9DA; --row-alt:#F1F3F6; --surface:#FFFFFF;
+  --page:#FBF7F3; --sand:#F2E6D6; --sand-3:#E3C8A4; --gold:#C08130;
+  --petrol:#0E3244; --petrol-2:#0B4761; --petrol-3:#05729A;
+  --cyan:#009DD4; --cyan-2:#8FD4EC; --cyan-3:#CCEBF6; --cyan-4:#F0F9FC;
+  --red:#FF0A3C; --red-text:#B30E33; --red-2:#FF93A9; --red-3:#FFCED8; --red-4:#FFF0F3;
+  --green:#23C459; --green-text:#175535; --green-mid:#1D8D47; --green-3:#C1EED1; --green-4:#E5F8EB;
+  font-family:'Hanken Grotesk',sans-serif;color:var(--ink);min-height:100vh;position:relative;
+  background:var(--page);}
+.dsp{font-family:'Archivo',sans-serif;font-weight:800;
   text-transform:uppercase;letter-spacing:.01em;}
-.eyebrow{font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
-  letter-spacing:.28em;font-size:11px;color:#5f6b7d;}
+.dsp9{font-family:'Archivo',sans-serif;font-weight:900;
+  text-transform:uppercase;letter-spacing:.01em;}
+.eyebrow{font-family:'Archivo',sans-serif;font-weight:700;text-transform:uppercase;
+  letter-spacing:.12em;font-size:11px;color:var(--muted-2);}
 .cardRunMeta{display:flex;align-items:center;gap:.65rem;flex-wrap:nowrap;
-  font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
-  letter-spacing:.06em;font-size:12px;color:#c6d2e3;white-space:nowrap;
+  font-family:'Archivo',sans-serif;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;font-size:12px;color:var(--ink-3);white-space:nowrap;
   overflow-x:auto;padding:.55rem 0;margin:0;
   -webkit-overflow-scrolling:touch;scrollbar-width:none;}
 .cardRunMeta::-webkit-scrollbar{display:none;}
-.cardRunMetaSep{color:#5f6b7d;flex-shrink:0;}
+.cardRunMetaSep{color:var(--muted-2);flex-shrink:0;}
 @media (min-width:640px){
-  .cardRunMeta{font-size:11px;letter-spacing:.1em;color:#93a1b5;}
+  .cardRunMeta{font-size:11px;letter-spacing:.08em;color:var(--muted);}
 }
-.panel{background:linear-gradient(180deg,#141926 0%,#10141f 100%);
-  border:1px solid #232b3d;border-top:2px solid #2c3650;
-  clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);}
-.chip{clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);}
-.skew{transform:skewX(-8deg);}
-.unskew{transform:skewX(8deg);display:inline-block;}
-.btnP{background:linear-gradient(180deg,#ff5468,#e8465a 55%,#c92840);color:#fff;
-  border:0;box-shadow:0 0 24px rgba(232,70,90,.4), inset 0 1px 0 rgba(255,255,255,.35);
+.panel{background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 1px 2px rgba(17,23,32,.04), 0 4px 14px rgba(17,23,32,.05);}
+.chip{border-radius:6px;}
+.skew{transform:none;}
+.unskew{display:inline-block;}
+.btnP{background:var(--petrol);color:#fff;
+  border:0;border-radius:8px;
   transition:filter .1s ease, transform .08s ease;}
-.btnP:hover{filter:brightness(1.1);} .btnP:active{transform:skewX(-8deg) scale(.97);}
-.btnG{background:#1a2132;color:#c6d2e3;border:1px solid #303c56;transition:filter .1s;}
-.btnG:hover{filter:brightness(1.25);} .btnG:active{transform:skewX(-8deg) scale(.97);}
-.btnDead{background:#12161f;color:#414c60;border:1px solid #1e2635;cursor:not-allowed;}
-.segCtrl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:#1a2132;border:1px solid #303c56;
-  overflow:visible;}
+.btnP:hover{filter:brightness(1.25);} .btnP:active{transform:scale(.97);}
+.btnG{background:var(--surface);color:var(--ink-2);border:1px solid var(--border-2);border-radius:8px;
+  transition:background .1s ease, transform .08s ease;}
+.btnG:hover{background:var(--row-alt);} .btnG:active{transform:scale(.97);}
+.btnDead{background:var(--row-alt);color:#A6A8AB;border:1px solid var(--border);border-radius:8px;cursor:not-allowed;}
+.segCtrl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--surface);border:1px solid var(--border-2);
+  border-radius:8px;overflow:visible;}
 .segCtrl button{position:relative;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:0;border-right:1px solid #303c56;color:#c6d2e3;
+  background:transparent;border:0;border-right:1px solid var(--border-2);color:var(--muted);
   padding:.3rem .4rem;min-height:34px;cursor:pointer;white-space:nowrap;
-  transition:filter .1s ease, transform .08s ease;}
-.segCtrl button:last-child{border-right:0;}
-.segCtrl button:hover{filter:brightness(1.2);z-index:2;}
+  transition:background .1s ease, transform .08s ease;}
+.segCtrl button:first-child{border-radius:7px 0 0 7px;}
+.segCtrl button:last-child{border-right:0;border-radius:0 7px 7px 0;}
+.segCtrl button:hover{background:var(--cyan-4);z-index:2;}
 .segCtrl button:active{transform:scale(.96);}
-.segCtrl button.active{background:linear-gradient(180deg,#ff5468,#e8465a 55%,#c92840);color:#fff;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.35);}
+.segCtrl button.active{background:var(--petrol);color:#fff;}
 .segCtrl .unskew{white-space:nowrap;}
-.segTip{position:absolute;left:50%;bottom:calc(100% + 8px);transform:skewX(8deg) translateX(-50%);
+.segTip{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);
   width:max-content;max-width:240px;padding:.45rem .6rem;pointer-events:none;
-  background:#0f1420;border:1px solid #303c56;color:#c6d2e3;
-  font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:700;
+  background:var(--ink);border:0;border-radius:6px;color:#E9E9EA;
+  font-family:'Archivo',sans-serif;font-weight:700;
   font-size:11px;letter-spacing:.04em;text-transform:uppercase;line-height:1.25;text-align:center;
   white-space:normal;opacity:0;visibility:hidden;transition:opacity .12s ease, visibility .12s ease;
-  box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:5;}
+  box-shadow:0 6px 18px rgba(17,23,32,.25);z-index:5;}
 .segTip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
-  border:5px solid transparent;border-top-color:#303c56;}
+  border:5px solid transparent;border-top-color:var(--ink);}
 .segCtrl button:hover .segTip,.segCtrl button:focus-visible .segTip{opacity:1;visibility:visible;}
 .fitChip{display:inline-flex;align-items:center;margin-top:.55rem;padding:.35rem .7rem;
-  font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
+  font-family:'Archivo',sans-serif;font-weight:800;border-radius:999px;
   font-size:11px;letter-spacing:.04em;text-transform:uppercase;line-height:1.2;}
-.fitChip.good{background:#1d3a2a;color:#7ee2a8;border:1px solid #2c5c40;}
-.fitChip.poor{background:#3a1d22;color:#f08a8a;border:1px solid #5c2c34;}
+.fitChip.good{background:var(--green-4);color:var(--green-text);border:1px solid var(--green-3);}
+.fitChip.poor{background:var(--red-4);color:var(--red-text);border:1px solid var(--red-3);}
 .fitChipLabel{letter-spacing:.14em;}
 .fitChipSep{margin:0 .45rem;opacity:.45;font-style:normal;}
 .fitChipDetail{font-weight:700;letter-spacing:.06em;opacity:.92;}
 .scoreDev{position:relative;overflow:visible;}
 .traitTip{position:absolute;transform:translate(calc(-50% + var(--tip-shift, 0px)),calc(-100% - 12px));width:max-content;max-width:220px;
-  padding:.55rem .7rem;pointer-events:none;z-index:6;
-  background:#0f1420;border:1px solid #303c56;box-shadow:0 8px 22px rgba(0,0,0,.5);}
+  padding:.55rem .7rem;pointer-events:none;z-index:6;border-radius:8px;
+  background:var(--ink);border:0;box-shadow:0 8px 22px rgba(17,23,32,.3);}
 .traitTip::after{content:"";position:absolute;left:calc(50% - var(--tip-shift, 0px));top:100%;transform:translateX(-50%);
-  border:5px solid transparent;border-top-color:#303c56;}
+  border:5px solid transparent;border-top-color:var(--ink);}
 .traitTip.traitTipBelow{transform:translate(calc(-50% + var(--tip-shift, 0px)),14px);}
-.traitTip.traitTipBelow::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:#303c56;}
-.traitTipLabel{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
+.traitTip.traitTipBelow::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:var(--ink);}
+.traitTipLabel{font-family:'Archivo',sans-serif;font-weight:800;
   font-size:12px;letter-spacing:.04em;text-transform:uppercase;line-height:1.2;}
-.traitTipSub{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:10px;
-  letter-spacing:.1em;text-transform:uppercase;color:#5f6b7d;margin-top:.15rem;}
-.traitTipBody{font-family:'Saira',sans-serif;font-size:12px;line-height:1.35;color:#c6d2e3;margin-top:.35rem;
+.traitTipSub{font-family:'Archivo',sans-serif;font-weight:700;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;color:#9EA1A6;margin-top:.15rem;}
+.traitTipBody{font-family:'Hanken Grotesk',sans-serif;font-size:12px;line-height:1.35;color:#E9E9EA;margin-top:.35rem;
   text-wrap:pretty;}
 .traitLabelWrap{outline:none;}
 .traitLabelTrigger{text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:currentColor;text-underline-offset:3px;text-decoration-thickness:1px;}
 .traitLabelWrap:hover .traitLabelTrigger,.traitLabelWrap:focus-within .traitLabelTrigger{text-decoration-style:solid;}
 .traitLabelTip{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%) translateX(-4px);
   width:max-content;max-width:200px;padding:.65rem .75rem .7rem;pointer-events:none;z-index:40;
-  background:#121826;border:1px solid #303c56;border-left:3px solid var(--trait-c,#7ee2a8);
-  box-shadow:0 10px 28px rgba(0,0,0,.55);opacity:0;visibility:hidden;
+  background:var(--ink);border:0;border-left:3px solid var(--trait-c,#23C459);border-radius:8px;
+  box-shadow:0 10px 28px rgba(17,23,32,.3);opacity:0;visibility:hidden;
   transition:opacity .14s ease,transform .14s ease,visibility .14s;}
 .traitLabelTip::before{content:"";position:absolute;right:100%;top:50%;transform:translateY(-50%);
-  border:5px solid transparent;border-right-color:#303c56;}
+  border:5px solid transparent;border-right-color:var(--ink);}
 .traitLabelWrap:hover .traitLabelTip,.traitLabelWrap:focus-within .traitLabelTip{opacity:1;visibility:visible;transform:translateY(-50%) translateX(0);}
-.traitLabelTipKind{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:10px;
-  letter-spacing:.14em;text-transform:uppercase;color:#7d8ba0;display:block;line-height:1;}
-.traitLabelTipDesc{font-family:'Saira',sans-serif;font-size:12px;line-height:1.4;color:#c6d2e3;margin-top:.4rem;
+.traitLabelTipKind{font-family:'Archivo',sans-serif;font-weight:700;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;color:#9EA1A6;display:block;line-height:1;}
+.traitLabelTipDesc{font-family:'Hanken Grotesk',sans-serif;font-size:12px;line-height:1.4;color:#E9E9EA;margin-top:.4rem;
   display:block;text-wrap:pretty;}
 @media (max-width:639px){
   .traitLabelTip{left:0;top:calc(100% + 8px);transform:translateY(-4px);max-width:min(200px,70vw);}
   .traitLabelTip::before{right:auto;left:14px;top:auto;bottom:100%;transform:none;
-    border:5px solid transparent;border-bottom-color:#303c56;border-right-color:transparent;}
+    border:5px solid transparent;border-bottom-color:var(--ink);border-right-color:transparent;}
   .traitLabelWrap:hover .traitLabelTip,.traitLabelWrap:focus-within .traitLabelTip{transform:translateY(0);}
 }
-.scoreNum{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
-  color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.7);}
+.scoreNum{font-family:'Archivo',sans-serif;font-weight:900;
+  color:#fff;font-variant-numeric:tabular-nums;}
 .qByQ{display:grid;gap:.2rem .35rem;align-items:center;text-align:center;}
-.qByQHead{font-family:'Saira Condensed',sans-serif;font-size:10px;letter-spacing:.1em;
-  color:#5f6b7d;font-weight:700;line-height:1;}
-.qByQSide{font-family:'Saira Condensed',sans-serif;font-size:10px;letter-spacing:.08em;
+.qByQHead{font-family:'Archivo',sans-serif;font-size:10px;letter-spacing:.1em;
+  color:var(--muted-2);font-weight:700;line-height:1;}
+.qByQSide{font-family:'Archivo',sans-serif;font-size:10px;letter-spacing:.08em;
   font-weight:700;text-align:left;line-height:1;}
-.qByQCell{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:800;
+.qByQCell{font-family:'Archivo',sans-serif;font-weight:800;
   font-size:16px;font-variant-numeric:tabular-nums;line-height:1.15;}
-.rowHover{transition:background .1s;} .rowHover:hover{background:rgba(232,70,90,.10);}
-.gemShield{clip-path:polygon(50% 0,100% 22%,100% 78%,50% 100%,0 78%,0 22%);}
+.rowHover{transition:background .1s;} .rowHover:hover{background:var(--cyan-4);}
+.gemShield{border-radius:8px;}
 .matchCard{display:flex;align-items:stretch;padding:0;overflow:hidden;}
 .matchCardRound{display:flex;flex-direction:column;justify-content:center;padding:.65rem .7rem;min-width:4.25rem;
-  background:rgba(0,0,0,.22);border-right:1px solid #1c2333;flex-shrink:0;}
+  background:var(--row-alt);border-right:1px solid var(--border);flex-shrink:0;}
 .matchCardRound .eyebrow{letter-spacing:.06em;font-size:9px;line-height:1.35;}
 .matchCardBody{flex:1;min-width:0;padding:.65rem .75rem;}
 .matchCardScore{display:flex;flex-direction:row;align-items:center;justify-content:flex-end;
   padding:.65rem .8rem;flex-shrink:0;gap:.35rem;white-space:nowrap;}
-.matchCardScoreNum{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
+.matchCardScoreNum{font-family:'Archivo',sans-serif;font-weight:900;
   font-size:1.2rem;white-space:nowrap;line-height:1;}
-.matchCardScoreIcon{font-family:'Saira Condensed',sans-serif;font-size:.95rem;line-height:1;flex-shrink:0;}
-.runHero{text-align:center;position:relative;}
-.runHeroAccent{position:absolute;top:0;left:14px;right:0;height:2px;pointer-events:none;}
-.runHeroRecord{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;
+.matchCardScoreIcon{font-family:'Archivo',sans-serif;font-size:.95rem;line-height:1;flex-shrink:0;}
+.runHero{text-align:center;position:relative;overflow:hidden;}
+.runHeroAccent{position:absolute;top:0;left:0;right:0;height:3px;pointer-events:none;}
+.runHeroRecord{font-family:'Archivo',sans-serif;font-weight:900;
   font-size:clamp(2.75rem,14vw,4.5rem);line-height:1;-webkit-text-fill-color:currentColor;}
 .runHeroStats{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:1rem;padding-top:1rem;}
-.runHeroStatVal{font-family:'Saira Condensed',sans-serif;font-style:italic;font-weight:900;font-size:1.5rem;}
-.runHeroStatLbl{font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+.runHeroStatVal{font-family:'Archivo',sans-serif;font-weight:900;font-size:1.5rem;}
+.runHeroStatLbl{font-family:'Archivo',sans-serif;font-weight:700;text-transform:uppercase;
   letter-spacing:.1em;font-size:9px;margin-top:.15rem;opacity:.75;}
 @media (prefers-reduced-motion: no-preference){
   .pop{animation:pop .28s cubic-bezier(.2,.9,.3,1.2);}
@@ -1644,12 +1653,12 @@ function gameMarginLabel(g, i) {
   return i < 3 ? "GROUP LOSS — SWEEP GONE" : i < 5 ? "2ND ROUND LOSS — SWEEP GONE" : "ELIMINATED";
 }
 
-function QuarterByQ({ myQ, opQ, otMy = [], otOp = [], myColor = "#E8465A", opColor = "#93a1b5" }) {
+function QuarterByQ({ myQ, opQ, otMy = [], otOp = [], myColor = "#FF0A3C", opColor = "#595A5C" }) {
   const otN = Math.max(otMy.length, otOp.length);
   const headers = ["Q1", "Q2", "Q3", "Q4", ...Array.from({ length: otN }, (_, i) => (otN === 1 ? "OT" : `OT${i + 1}`))];
   const my = [...myQ, ...otMy];
   const op = [...opQ, ...otOp];
-  const cellColor = (a, b) => (a > b ? "#EAF0F7" : a < b ? "#5f6b7d" : "#93a1b5");
+  const cellColor = (a, b) => (a > b ? "#111720" : a < b ? "#9EA1A6" : "#595A5C");
   return (
     <div className="qByQ" style={{ gridTemplateColumns: `2.4rem repeat(${headers.length}, minmax(0, 1fr))` }}>
       <span aria-hidden="true" />
@@ -1667,8 +1676,8 @@ function QuarterByQ({ myQ, opQ, otMy = [], otOp = [], myColor = "#E8465A", opCol
 }
 
 const GAME_RESULT_STYLES = {
-  win: { background: "#1d3a2a", color: "#7ee2a8", border: "1px solid #2c5c40" },
-  loss: { background: "#3a1d22", color: "#f08a8a", border: "1px solid #5c2c34" },
+  win: { background: "#E5F8EB", color: "#175535", border: "1px solid #C1EED1" },
+  loss: { background: "#FFF0F3", color: "#B30E33", border: "1px solid #FFCED8" },
 };
 
 function gameResultState(g) {
@@ -1692,14 +1701,14 @@ const MatchSummaryCard = ({ g, i }) => {
     <div className="matchCard panel slideL">
       <div className="matchCardRound">
         <span className="eyebrow">{roundShortLabel(i, g.round)}</span>
-        {subIdx != null && <span className="eyebrow" style={{ color: "#93a1b5", fontSize: 8 }}>· G{subIdx}</span>}
+        {subIdx != null && <span className="eyebrow" style={{ color: "#595A5C", fontSize: 8 }}>· G{subIdx}</span>}
       </div>
       <div className="matchCardBody">
         <div className="dsp text-sm" style={{ color: oc }}>
           VS {g.opp.name.toUpperCase()}{"\u00A0"}'{g.opp.season.slice(2)}
         </div>
         {scorers && (
-          <div className="text-[11px] mt-0.5 truncate" style={{ color: "#5f6b7d" }}>
+          <div className="text-[11px] mt-0.5 truncate" style={{ color: "#747679" }}>
             TOP PTS · {scorers}
           </div>
         )}
@@ -1717,9 +1726,9 @@ const MatchSummaryCard = ({ g, i }) => {
 };
 
 const RUN_HERO_THEMES = {
-  sweep: { color: "#7ee2a8", stroke: "#2c5c40" },
-  close: { color: "#e8d48a", stroke: "#5c4f28" },
-  loss: { color: "#f08a8a", stroke: "#5c2c34" },
+  sweep: { color: "#1D8D47", stroke: "#23C459" },
+  close: { color: "#C08130", stroke: "#E3C8A4" },
+  loss: { color: "#B30E33", stroke: "#FF0A3C" },
 };
 
 function runOutcomeKey(perfect, eliminated) {
@@ -1764,7 +1773,7 @@ const RunSummaryHero = ({ perfect, eliminated, groupOut, r2Out, runStats }) => {
       <div className="eyebrow mb-1" style={{ letterSpacing: ".14em", color: theme.color, opacity: 0.8 }}>{headline}</div>
       <div className="runHeroRecord" style={{ color: theme.color }}>{record}</div>
       <div className="dsp text-sm mt-2" style={{ color: theme.color, opacity: 0.85 }}>{subLabel}</div>
-      <div className="runHeroStats" style={{ borderTop: "1px solid #1c2333" }}>
+      <div className="runHeroStats" style={{ borderTop: "1px solid #E9E9EA" }}>
         {[
           [ppgF.toFixed(1), "PTS FOR / G"],
           [ppgA.toFixed(1), "AGAINST / G"],
@@ -1784,7 +1793,7 @@ const Gem = ({ rt, size = 34 }) => {
   const t = tier(rt);
   return (
     <span className="gemShield inline-flex items-center justify-center dsp9"
-      style={{ width: size, height: size * 1.12, background: t.bg, color: t.fg, fontSize: size * 0.44, fontStyle: "italic" }}>
+      style={{ width: size, height: size * 1.12, background: t.bg, color: t.fg, fontSize: size * 0.44 }}>
       {rt}
     </span>
   );
@@ -1793,12 +1802,12 @@ const Gem = ({ rt, size = 34 }) => {
 const TraitLabel = ({ traitId }) => {
   const def = TRAIT_DEFS[traitId];
   if (!def) return null;
-  const color = def.pos ? "#7ee2a8" : "#f08a8a";
+  const color = def.pos ? "#1D8D47" : "#B30E33";
   return (
-    <span className="traitLabelWrap relative inline-block" style={{ ["--trait-c"]: color }}>
+    <span className="traitLabelWrap relative inline-block" style={{ ["--trait-c"]: def.pos ? "#23C459" : "#FF0A3C" }}>
       <span
         className="traitLabelTrigger text-[11px] cursor-help"
-        style={{ color, letterSpacing: ".08em", fontFamily: "'Saira Condensed', sans-serif", fontWeight: 700 }}
+        style={{ color, letterSpacing: ".08em", fontFamily: "'Archivo', sans-serif", fontWeight: 700 }}
         tabIndex={0}
       >
         {def.label}
@@ -1812,8 +1821,8 @@ const TraitLabel = ({ traitId }) => {
 };
 
 const fieldChrome = {
-  background: "#0e1219", border: "1px solid #2f3d5c", color: "#EAF0F7",
-  outline: "none", borderRadius: 0,
+  background: "#FFFFFF", border: "1px solid #D8D9DA", color: "#111720",
+  outline: "none", borderRadius: 8,
 };
 
 const CountryCombobox = ({ value, onChange }) => {
@@ -1908,13 +1917,14 @@ const CountryCombobox = ({ value, onChange }) => {
           role="listbox"
           className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto"
           style={{
-            background: "#0e1219",
-            border: "1px solid #2f3d5c",
-            boxShadow: "0 12px 28px rgba(0,0,0,.45)",
+            background: "#FFFFFF",
+            border: "1px solid #D8D9DA",
+            borderRadius: 8,
+            boxShadow: "0 12px 28px rgba(17,23,32,.14)",
           }}
         >
           {filtered.length === 0 ? (
-            <li className="px-3 py-2.5 text-sm" style={{ color: "#7d8ba0" }}>No matches</li>
+            <li className="px-3 py-2.5 text-sm" style={{ color: "#747679" }}>No matches</li>
           ) : (
             filtered.map((c, i) => (
               <li
@@ -1926,8 +1936,8 @@ const CountryCombobox = ({ value, onChange }) => {
                 onMouseEnter={() => setHighlight(i)}
                 className="px-3 py-2 text-sm cursor-pointer"
                 style={{
-                  background: i === highlight ? "#1a2438" : "transparent",
-                  color: c.code === value ? "#7ee2a8" : "#EAF0F7",
+                  background: i === highlight ? "#F0F9FC" : "transparent",
+                  color: c.code === value ? "#05729A" : "#111720",
                 }}
               >
                 {c.flag} {c.name}
@@ -2085,7 +2095,7 @@ export default function PerfectSweep() {
   const computeTable = (played) => {
     if (played.length < 3 || !gauntlet.length) return null;
     const rows = [
-      { id: "me", name: "YOUR FIVE", c: "#E8465A", w: 0, l: 0, pf: 0, pa: 0 },
+      { id: "me", name: "YOUR FIVE", c: "#FF0A3C", w: 0, l: 0, pf: 0, pa: 0 },
       ...gauntlet.slice(0, 3).map((t, i) => ({ id: i, name: `${t.name} '${t.season.slice(2)}`, c: oppColor(t), w: 0, l: 0, pf: 0, pa: 0 })),
     ];
     const get = (id) => rows.find((r) => r.id === id);
@@ -2121,7 +2131,7 @@ export default function PerfectSweep() {
     if (!r2 || played.length < 5) return null;
     const A = gauntlet[3], B = gauntlet[4];
     const rows = [
-      { id: "me", name: "YOUR FIVE", c: "#E8465A", w: 0, l: 0, pf: 0, pa: 0 },
+      { id: "me", name: "YOUR FIVE", c: "#FF0A3C", w: 0, l: 0, pf: 0, pa: 0 },
       { id: "riv", name: `${r2.rival.name} '${r2.rival.season.slice(2)}`, c: oppColor(r2.rival), w: 0, l: 0, pf: 0, pa: 0 },
       { id: "A", name: `${A.name} '${A.season.slice(2)}`, c: oppColor(A), w: 0, l: 0, pf: 0, pa: 0 },
       { id: "B", name: `${B.name} '${B.season.slice(2)}`, c: oppColor(B), w: 0, l: 0, pf: 0, pa: 0 },
@@ -2421,9 +2431,9 @@ export default function PerfectSweep() {
         <div
           className="fixed left-1/2 z-50 pop px-4 py-2 dsp text-sm"
           style={{
-            top: 72, transform: "translateX(-50%)",
-            background: "#1a2336", border: "1px solid #2f3d5c", color: "#7ee2a8",
-            boxShadow: "0 8px 28px rgba(0,0,0,.45)",
+            top: 72, transform: "translateX(-50%)", borderRadius: 8,
+            background: "#FFFFFF", border: "1px solid #C1EED1", color: "#175535",
+            boxShadow: "0 8px 28px rgba(17,23,32,.16)",
           }}
         >
           {hallToast}
@@ -2433,34 +2443,34 @@ export default function PerfectSweep() {
       {showHallModal && (
         <div
           className="fixed inset-0 z-40 flex items-center justify-center px-4"
-          style={{ background: "rgba(6,8,14,.72)", backdropFilter: "blur(4px)" }}
+          style={{ background: "rgba(17,23,32,.45)", backdropFilter: "blur(4px)" }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="hall-title"
         >
-          <div className="panel p-5 w-full max-w-md pop" style={{ background: "#121826" }}>
-            <div className="eyebrow mb-1" style={{ color: "#E8465A" }}>HALL OF FAME</div>
+          <div className="panel p-5 w-full max-w-md pop">
+            <div className="eyebrow mb-1" style={{ color: "#B30E33" }}>HALL OF FAME</div>
             <h2
               id="hall-title"
               className="dsp text-2xl mb-1.5"
-              style={{ color: "#EAF0F7", textWrap: "balance" }}
+              style={{ color: "#111720", textWrap: "balance" }}
             >
               Claim your spot
             </h2>
-            <p className="text-sm mb-4 leading-relaxed" style={{ color: "#93a1b5", textWrap: "pretty" }}>
+            <p className="text-sm mb-4 leading-relaxed" style={{ color: "#595A5C", textWrap: "pretty" }}>
               8–0 and you beat the Dream Team. Sign in with your margin score.
             </p>
             <div className="mb-4 text-center py-1">
-              <div className="eyebrow mb-1" style={{ color: "#7d8ba0" }}>MARGIN SCORE</div>
+              <div className="eyebrow mb-1" style={{ color: "#747679" }}>MARGIN SCORE</div>
               <div
                 className="dsp9 text-5xl"
-                style={{ color: "#7ee2a8", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}
+                style={{ color: "#1D8D47", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}
               >
                 {runStats.marginScore}
               </div>
             </div>
             <label className="block mb-3">
-              <span className="eyebrow block mb-1.5" style={{ color: "#7d8ba0" }}>NICKNAME</span>
+              <span className="eyebrow block mb-1.5" style={{ color: "#747679" }}>NICKNAME</span>
               <input
                 type="text"
                 value={hallNick}
@@ -2482,11 +2492,11 @@ export default function PerfectSweep() {
               />
             </label>
             <label className="block mb-4">
-              <span className="eyebrow block mb-1.5" style={{ color: "#7d8ba0" }}>COUNTRY</span>
+              <span className="eyebrow block mb-1.5" style={{ color: "#747679" }}>COUNTRY</span>
               <CountryCombobox value={hallCountry} onChange={setHallCountry} />
             </label>
             {hallError && (
-              <p className="text-sm mb-3" style={{ color: "#ff8b98" }}>{hallError}</p>
+              <p className="text-sm mb-3" style={{ color: "#B30E33" }}>{hallError}</p>
             )}
             <div className="flex flex-col gap-2">
               <button
@@ -2514,41 +2524,40 @@ export default function PerfectSweep() {
 
       {/* ===== top bar ===== */}
       <div className="flex items-center justify-center px-5 py-3 relative"
-        style={{ background: "linear-gradient(180deg,#131826,#0e1219)", borderBottom: "1px solid #232b3d" }}>
+        style={{ background: "#0E3244" }}>
         <div className="flex items-center gap-3 cursor-pointer" onClick={reset}>
-          <div className="skew chip px-3 py-1 dsp9 text-lg" style={{ background: "#E8465A", color: "#fff" }}>
+          <div className="skew chip px-3 py-1 dsp9 text-lg" style={{ background: "#FF0A3C", color: "#fff" }}>
             <span className="unskew">8–0</span>
           </div>
-          <div className="dsp text-lg" style={{ color: "#EAF0F7" }}>PERFECT SWEEP</div>
+          <div className="dsp text-lg" style={{ color: "#fff" }}>PERFECT SWEEP</div>
         </div>
-        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2">
+        <div className="eyebrow hidden sm:block absolute right-5 top-1/2 -translate-y-1/2" style={{ color: "#8FD4EC" }}>
           FIBA WORLD CUP · {ARCHIVE_STATS.years.first}—{ARCHIVE_STATS.years.last}
         </div>
       </div>
-      {/* accent strips */}
-      <div style={{ height: 3, background: "linear-gradient(90deg,#E8465A 0%,#E8465A 30%,#23b4e2 30%,#23b4e2 33%,transparent 33%)" }} />
+      {/* accent strip */}
+      <div style={{ height: 3, background: "#009DD4" }} />
 
       {/* ============ HOME ============ */}
       {screen === "home" && (
-        <div className="max-w-3xl mx-auto px-6 py-12 text-center pop relative">
-          <div className="eyebrow mb-2">MYTEAM · WORLD CUP GAUNTLET</div>
-          <div className="dsp9" style={{
-            fontSize: "min(20vw,150px)", lineHeight: 0.9,
-            background: "linear-gradient(180deg,#fff 30%,#ff8b98 60%,#E8465A)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            filter: "drop-shadow(0 6px 30px rgba(232,70,90,.35))",
-          }}>8–0</div>
-          <h1 className="dsp text-3xl mt-3" style={{ color: "#EAF0F7" }}>
-            ROLL THE BALL. DRAFT YOUR DREAM NATIONAL FIVE.
-          </h1>
-          <p className="mt-4 text-base max-w-xl mx-auto" style={{ color: "#93a1b5" }}>
-            Roll legendary World Cup squads, draft your five, and chase the perfect mark: <b style={{ color: "#ff8b98" }}>win the Cup without losing a single game.</b>
-          </p>
+        <div className="max-w-3xl mx-auto px-6 py-10 text-center pop relative">
+          <div className="px-6 py-10 sm:py-12" style={{ background: "#0E3244", borderRadius: 16 }}>
+            <div className="eyebrow mb-2" style={{ color: "#8FD4EC" }}>MYTEAM · WORLD CUP GAUNTLET</div>
+            <div className="dsp9" style={{
+              fontSize: "min(20vw,150px)", lineHeight: 0.9, color: "#fff",
+            }}>8–0</div>
+            <h1 className="dsp text-3xl mt-3" style={{ color: "#fff" }}>
+              ROLL THE BALL. DRAFT YOUR DREAM NATIONAL FIVE.
+            </h1>
+            <p className="mt-4 text-base max-w-xl mx-auto" style={{ color: "#CCEBF6" }}>
+              Roll legendary World Cup squads, draft your five, and chase the perfect mark: <b style={{ color: "#8FD4EC" }}>win the Cup without losing a single game.</b>
+            </p>
+          </div>
           <div className="flex justify-center gap-3 mt-8 flex-wrap">
             {[["01", "ROLL", "draw nations & years"], ["02", "DRAFT", "one star per position"], ["03", "SWEEP", "win the Cup undefeated"]].map(([n, t, d]) => (
               <div key={n} className="panel px-5 py-3 text-left" style={{ minWidth: 170 }}>
-                <div className="dsp9 text-2xl" style={{ color: "#E8465A" }}>{n} <span style={{ color: "#EAF0F7" }}>{t}</span></div>
-                <div className="text-xs" style={{ color: "#7d8ba0" }}>{d}</div>
+                <div className="dsp9 text-2xl" style={{ color: "#FF0A3C" }}>{n} <span style={{ color: "#111720" }}>{t}</span></div>
+                <div className="text-xs" style={{ color: "#747679" }}>{d}</div>
               </div>
             ))}
           </div>
@@ -2578,13 +2587,13 @@ export default function PerfectSweep() {
                   <div key={s}
                     className="relative p-2 text-center chip"
                     style={p
-                      ? { background: `linear-gradient(180deg, ${p.tc}33, #10141f 70%)`, border: `1px solid ${p.tc}`, borderTop: `3px solid ${p.tc}` }
-                      : { border: "1px dashed #33405c", color: "#5f6b7d", background: "rgba(255,255,255,.015)" }}>
+                      ? { background: `linear-gradient(180deg, ${p.tc}26, #ffffff 70%)`, border: "1px solid #E9E9EA", borderTop: `3px solid ${p.tc}` }
+                      : { border: "1px dashed #D8D9DA", color: "#747679", background: "#F1F3F6" }}>
                     <div className="eyebrow">{s}</div>
                     {p ? (<>
                       <div className="flex justify-center my-1"><Gem rt={p.rt} /></div>
-                      <div className="dsp leading-tight text-sm" style={{ color: "#fff" }}>#{p.n} {p.name}</div>
-                      <div className="text-[11px]" style={{ color: "#93a1b5" }}>{p.team} '{p.season.slice(2)}</div>
+                      <div className="dsp leading-tight text-sm" style={{ color: "#111720" }}>#{p.n} {p.name}</div>
+                      <div className="text-[11px]" style={{ color: "#595A5C" }}>{p.team} '{p.season.slice(2)}</div>
                     </>) : <div className="py-5 dsp text-sm">EMPTY</div>}
                   </div>
                 );
@@ -2630,7 +2639,7 @@ export default function PerfectSweep() {
                   Not feeling it?{" "}
                   <span className="text-lg leading-none" aria-hidden="true" style={{ letterSpacing: 0 }}>⟳</span>
                   {" "}Swap{" "}
-                  <b style={{ color: swapsLeft ? "#E8465A" : "#5f6b7d" }}>{swapsLeft}×</b>
+                  <b style={{ color: swapsLeft ? "#B30E33" : "#747679" }}>{swapsLeft}×</b>
                 </span>
                 {/* NATION + YEAR stay on one row — never wrap apart */}
                 <div className="flex flex-nowrap items-center gap-2 shrink-0">
@@ -2690,7 +2699,7 @@ export default function PerfectSweep() {
             {deck.map((t, i) => (
               <div key={`${t.name}-${t.season}-${rolls}`} className="panel overflow-hidden slideL">
                 <div className="relative px-4 py-3"
-                  style={{ background: `linear-gradient(100deg, ${t.c} 0%, ${t.c}cc 55%, #10141f 100%)` }}>
+                  style={{ background: `linear-gradient(100deg, ${t.c} 0%, ${t.c}cc 55%, #0E3244 100%)`, borderRadius: "11px 11px 0 0" }}>
                   <div className="dsp9 text-2xl" style={{ color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.5)" }}>
                     {t.name.toUpperCase()}
                   </div>
@@ -2701,8 +2710,8 @@ export default function PerfectSweep() {
                 <div className="p-2 relative">
                   {pickedThisRoll && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center"
-                      style={{ background: "rgba(10,12,18,.72)", backdropFilter: "blur(1px)" }}>
-                      <div className="skew chip dsp9 px-5 py-2 text-sm" style={{ background: "linear-gradient(160deg,#c7ddff,#60a5fa 55%,#2563eb)", color: "#0a1e45" }}>
+                      style={{ background: "rgba(255,255,255,.8)", backdropFilter: "blur(1px)" }}>
+                      <div className="skew chip dsp9 px-5 py-2 text-sm" style={{ background: "#0E3244", color: "#fff" }}>
                         <span className="unskew">
                           {fiveSet ? "STARTING FIVE SET — PLAY THE WORLD CUP" : "PLAYER SIGNED — ROLL AGAIN FOR THE NEXT SQUAD"}
                         </span>
@@ -2716,13 +2725,13 @@ export default function PerfectSweep() {
                     return (
                       <div key={j} onClick={() => pick(t, p)}
                         className={`rowHover flex items-center justify-between px-2 py-1.5 ${locked ? "opacity-30" : "cursor-pointer"}`}
-                        style={{ borderBottom: j < t.players.length - 1 ? "1px solid #1c2333" : "none" }}>
+                        style={{ borderBottom: j < t.players.length - 1 ? "1px solid #E9E9EA" : "none" }}>
                         <div className="flex items-center gap-2">
                           <span className="chip dsp text-xs px-2 py-0.5"
-                            style={{ background: "#1a2132", color: "#8fa0b8", minWidth: 34, textAlign: "center" }}>{p.pos}</span>
-                          <span className="dsp text-base" style={{ color: "#EAF0F7" }}>#{p.n} {p.name}</span>
+                            style={{ background: "#F1F3F6", color: "#595A5C", minWidth: 34, textAlign: "center" }}>{p.pos}</span>
+                          <span className="dsp text-base" style={{ color: "#111720" }}>#{p.n} {p.name}</span>
                           {dupe
-                            ? <span className="eyebrow" style={{ letterSpacing: ".1em", color: "#E8465A" }}>ALREADY SIGNED</span>
+                            ? <span className="eyebrow" style={{ letterSpacing: ".1em", color: "#B30E33" }}>ALREADY SIGNED</span>
                             : taken && <span className="eyebrow" style={{ letterSpacing: ".1em" }}>SLOT FILLED</span>}
                         </div>
                         <Gem rt={p.rt} size={30} />
@@ -2745,7 +2754,7 @@ export default function PerfectSweep() {
             <span className="eyebrow">SIM SPEED</span>
             <select value={speed} onChange={(e) => setSpeed(e.target.value)} disabled={!!live}
               className="dsp text-sm px-3 py-1.5"
-              style={{ background: "#1a2132", color: "#c6d2e3", border: "1px solid #303c56", outline: "none", fontStyle: "italic", cursor: live ? "not-allowed" : "pointer" }}>
+              style={{ background: "#FFFFFF", color: "#21262E", border: "1px solid #D8D9DA", borderRadius: 8, outline: "none", cursor: live ? "not-allowed" : "pointer" }}>
               <option value="fast">FAST — RESULT ONLY</option>
               <option value="medium">MEDIUM — LIVE SCORE TICKER</option>
               <option value="slow">SLOW — PLAY-BY-PLAY</option>
@@ -2758,12 +2767,12 @@ export default function PerfectSweep() {
               const g = games[i];
               const state = !g ? "up" : gameResultState(g);
               const sty = {
-                up: { background: "#151b29", color: "#5f6b7d", border: "1px solid #232b3d" },
+                up: { background: "#F1F3F6", color: "#747679", border: "1px solid #E9E9EA" },
                 ...GAME_RESULT_STYLES,
               }[state];
               return (
                 <div key={i} className="chip dsp text-[10px] px-2.5 py-1 text-center" style={{ ...sty, minWidth: 72 }}>
-                  {r}{g && <div className="dsp9 text-sm" style={{ fontStyle: "italic" }}>{g.my}–{g.op}</div>}
+                  {r}{g && <div className="dsp9 text-sm">{g.my}–{g.op}</div>}
                 </div>
               );
             })}
@@ -2771,12 +2780,12 @@ export default function PerfectSweep() {
               const g = dreamGame;
               const state = !g ? "up" : gameResultState(g);
               const sty = {
-                up: { background: "#151b29", color: "#FFD700", border: "1px solid #5c4f28" },
+                up: { background: "#FBF7F3", color: "#C08130", border: "1px solid #E3C8A4" },
                 ...GAME_RESULT_STYLES,
               }[state];
               return (
                 <div className="chip dsp text-[10px] px-2.5 py-1 text-center" style={{ ...sty, minWidth: 72 }}>
-                  DREAM TEAM{g && <div className="dsp9 text-sm" style={{ fontStyle: "italic" }}>{g.my}–{g.op}</div>}
+                  DREAM TEAM{g && <div className="dsp9 text-sm">{g.my}–{g.op}</div>}
                 </div>
               );
             })()}
@@ -2795,19 +2804,19 @@ export default function PerfectSweep() {
                 {/* scoreboard bar */}
                 <div className="grid items-stretch mt-1" style={{ gridTemplateColumns: "1fr auto 1fr" }}>
                   <div className="flex items-center px-4 py-2"
-                    style={{ background: "linear-gradient(90deg,#E8465A22,transparent)" , borderLeft: "4px solid #E8465A" }}>
-                    <span className="dsp9 text-lg" style={{ color: "#fff" }}>YOUR FIVE</span>
+                    style={{ background: "linear-gradient(90deg,#FF0A3C14,transparent)" , borderLeft: "4px solid #FF0A3C" }}>
+                    <span className="dsp9 text-lg" style={{ color: "#111720" }}>YOUR FIVE</span>
                   </div>
                   <div className="scoreNum text-4xl px-4 flex items-center"
-                    style={{ background: "#0b0e15", borderTop: "1px solid #232b3d", borderBottom: "1px solid #232b3d" }}>
-                    {g.my}<span style={{ color: "#3d486c", padding: "0 6px", fontSize: 22 }}>—</span>{g.op}
+                    style={{ background: "#0E3244", borderRadius: 8 }}>
+                    {g.my}<span style={{ color: "#8FD4EC", padding: "0 6px", fontSize: 22 }}>—</span>{g.op}
                   </div>
                   <div className="flex items-center justify-end px-4 py-2"
-                    style={{ background: `linear-gradient(270deg, ${oppColor(g.opp)}33, transparent)`, borderRight: `4px solid ${oppColor(g.opp)}` }}>
-                    <span className="dsp9 text-lg" style={{ color: "#fff" }}>{g.opp.name.toUpperCase()} '{g.opp.season.slice(2)}</span>
+                    style={{ background: `linear-gradient(270deg, ${oppColor(g.opp)}1f, transparent)`, borderRight: `4px solid ${oppColor(g.opp)}` }}>
+                    <span className="dsp9 text-lg" style={{ color: "#111720" }}>{g.opp.name.toUpperCase()} '{g.opp.season.slice(2)}</span>
                   </div>
                 </div>
-                <div className="px-4 py-2.5" style={{ borderTop: "1px solid #1c2333" }}>
+                <div className="px-4 py-2.5" style={{ borderTop: "1px solid #E9E9EA" }}>
                   <QuarterByQ
                     myQ={g.myQ}
                     opQ={g.opQ}
@@ -2815,17 +2824,17 @@ export default function PerfectSweep() {
                     otOp={g.otOp}
                     opColor={oppColor(g.opp)}
                   />
-                  <div className="dsp mt-2 text-[11px] truncate" style={{ color: "#93a1b5" }}>
+                  <div className="dsp mt-2 text-[11px] truncate" style={{ color: "#595A5C" }}>
                     {g.box.slice(0, 3).map((p) => `${p.name} ${p.pts}`).join("  ·  ")}
                   </div>
                 </div>
                 {g.story && (
                   <div className="px-4 py-2.5 text-sm" style={{
-                    borderTop: "1px solid #1c2333",
-                    background: "linear-gradient(90deg, rgba(232,70,90,.07), transparent)",
-                    color: "#c6d2e3",
+                    borderTop: "1px solid #E9E9EA",
+                    background: "linear-gradient(90deg, rgba(0,157,212,.06), transparent)",
+                    color: "#2E333B",
                   }}>
-                    <span className="eyebrow mr-2" style={{ color: "#E8465A" }}>RECAP</span>
+                    <span className="eyebrow mr-2" style={{ color: "#B30E33" }}>RECAP</span>
                     {g.story}
                   </div>
                 )}
@@ -2833,15 +2842,15 @@ export default function PerfectSweep() {
                   <>
                     <div onClick={() => setOpenFlow((o) => ({ ...o, [i]: !o[i] }))}
                       className="rowHover flex items-center justify-between px-4 py-2 cursor-pointer"
-                      style={{ borderTop: "1px solid #1c2333" }}>
+                      style={{ borderTop: "1px solid #E9E9EA" }}>
                       <span className="eyebrow">SCORING DEVELOPMENT</span>
-                      <span className="dsp text-sm whitespace-nowrap shrink-0" style={{ color: "#5f6b7d" }}>{openFlow[i] ? "▲\u00A0HIDE" : "▼\u00A0SHOW"}</span>
+                      <span className="dsp text-sm whitespace-nowrap shrink-0" style={{ color: "#747679" }}>{openFlow[i] ? "▲\u00A0HIDE" : "▼\u00A0SHOW"}</span>
                     </div>
                     {openFlow[i] && (
                       <div className="px-3 pb-3 pop">
                         <div className="flex gap-4 px-1 mb-1 text-[11px] flex-wrap justify-end">
-                          <span className="flex items-center gap-1.5" style={{ color: "#E8465A" }}>
-                            <span style={{ width: 10, height: 10, background: "#E8465A", display: "inline-block" }} />
+                          <span className="flex items-center gap-1.5" style={{ color: "#FF0A3C" }}>
+                            <span style={{ width: 10, height: 10, background: "#FF0A3C", display: "inline-block" }} />
                             YOUR FIVE
                           </span>
                           <span className="flex items-center gap-1.5" style={{ color: oppColor(g.opp) }}>
@@ -2860,38 +2869,40 @@ export default function PerfectSweep() {
               {i === 2 && groupTable && (
                 <div className="panel p-4 mb-3 pop">
                   <div className="flex items-baseline gap-3 mb-2">
-                    <div className="dsp9 text-xl" style={{ color: "#fff" }}>GROUP STANDINGS</div>
+                    <div className="dsp9 text-xl" style={{ color: "#111720" }}>GROUP STANDINGS</div>
                     <div className="eyebrow">TOP 2 ADVANCE TO THE 2ND ROUND · WIN 2 PTS / LOSS 1 PT</div>
                   </div>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="eyebrow text-left" style={{ fontSize: 10 }}>
-                        <th className="py-1 pr-2">#</th><th>TEAM</th>
-                        <th className="text-center">W</th><th className="text-center">L</th>
-                        <th className="text-center">PF</th><th className="text-center">PA</th>
-                        <th className="text-center">+/−</th><th className="text-center">PTS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupTable.map((r, ri) => (
-                        <tr key={r.id} className="dsp" style={{
-                          background: ri < 2 ? "linear-gradient(90deg, rgba(232,70,90,.12), transparent)" : "transparent",
-                          color: r.id === "me" ? "#ff8b98" : "#dbe4f0",
-                          borderTop: "1px solid #1c2333",
-                          opacity: ri < 2 ? 1 : 0.45,
-                        }}>
-                          <td className="py-1.5 pr-2">{ri + 1}{ri < 2 && <span style={{ color: "#7ee2a8" }}> ▲</span>}</td>
-                          <td style={{ color: r.id === "me" ? "#ff8b98" : r.c }}>
-                            {r.name.toUpperCase()}</td>
-                          <td className="text-center">{r.w}</td><td className="text-center">{r.l}</td>
-                          <td className="text-center">{r.pf}</td><td className="text-center">{r.pa}</td>
-                          <td className="text-center">{r.diff > 0 ? "+" : ""}{r.diff}</td>
-                          <td className="text-center dsp9">{r.pts}</td>
+                  <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #E9E9EA" }}>
+                    <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr className="eyebrow text-left" style={{ fontSize: 10, background: "#0E3244", color: "#fff" }}>
+                          <th className="py-1.5 pl-2 pr-2">#</th><th>TEAM</th>
+                          <th className="text-center">W</th><th className="text-center">L</th>
+                          <th className="text-center">PF</th><th className="text-center">PA</th>
+                          <th className="text-center">+/−</th><th className="text-center pr-2">PTS</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="text-[11px] mt-2" style={{ color: "#5f6b7d" }}>
+                      </thead>
+                      <tbody>
+                        {groupTable.map((r, ri) => (
+                          <tr key={r.id} className="dsp" style={{
+                            background: ri % 2 ? "#F1F3F6" : "#FFFFFF",
+                            color: r.id === "me" ? "#B30E33" : "#21262E",
+                            borderTop: "1px solid #E9E9EA",
+                            opacity: ri < 2 ? 1 : 0.55,
+                          }}>
+                            <td className="py-1.5 pl-2 pr-2">{ri + 1}{ri < 2 && <span style={{ color: "#1D8D47" }}> ▲</span>}</td>
+                            <td style={{ color: r.id === "me" ? "#B30E33" : r.c }}>
+                              {r.name.toUpperCase()}</td>
+                            <td className="text-center">{r.w}</td><td className="text-center">{r.l}</td>
+                            <td className="text-center">{r.pf}</td><td className="text-center">{r.pa}</td>
+                            <td className="text-center">{r.diff > 0 ? "+" : ""}{r.diff}</td>
+                            <td className="text-center dsp9 pr-2">{r.pts}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="text-[11px] mt-2" style={{ color: "#747679" }}>
                     OTHER RESULTS — {rivalGames.map((rg) => {
                       const A = gauntlet[rg.a], B = gauntlet[rg.b];
                       return `${A.name} '${A.season.slice(2)} ${rg.sa}–${rg.sb} ${B.name} '${B.season.slice(2)}`;
@@ -2904,37 +2915,39 @@ export default function PerfectSweep() {
               {i === 4 && r2Table && (
                 <div className="panel p-4 mb-3 pop">
                   <div className="flex items-baseline gap-3 mb-2 flex-wrap">
-                    <div className="dsp9 text-xl" style={{ color: "#fff" }}>2ND ROUND STANDINGS</div>
+                    <div className="dsp9 text-xl" style={{ color: "#111720" }}>2ND ROUND STANDINGS</div>
                     <div className="eyebrow">TOP 2 REACH THE QUARTERFINALS · RESULTS CARRY OVER</div>
                   </div>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="eyebrow text-left" style={{ fontSize: 10 }}>
-                        <th className="py-1 pr-2">#</th><th>TEAM</th>
-                        <th className="text-center">W</th><th className="text-center">L</th>
-                        <th className="text-center">PF</th><th className="text-center">PA</th>
-                        <th className="text-center">+/−</th><th className="text-center">PTS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {r2Table.map((r, ri) => (
-                        <tr key={r.id} className="dsp" style={{
-                          background: ri < 2 ? "linear-gradient(90deg, rgba(232,70,90,.12), transparent)" : "transparent",
-                          color: r.id === "me" ? "#ff8b98" : "#dbe4f0",
-                          borderTop: "1px solid #1c2333",
-                          opacity: ri < 2 ? 1 : 0.45,
-                        }}>
-                          <td className="py-1.5 pr-2">{ri + 1}{ri < 2 && <span style={{ color: "#7ee2a8" }}> ▲</span>}</td>
-                          <td style={{ color: r.id === "me" ? "#ff8b98" : r.c }}>{r.name.toUpperCase()}</td>
-                          <td className="text-center">{r.w}</td><td className="text-center">{r.l}</td>
-                          <td className="text-center">{r.pf}</td><td className="text-center">{r.pa}</td>
-                          <td className="text-center">{r.diff > 0 ? "+" : ""}{r.diff}</td>
-                          <td className="text-center dsp9">{r.pts}</td>
+                  <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #E9E9EA" }}>
+                    <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr className="eyebrow text-left" style={{ fontSize: 10, background: "#0E3244", color: "#fff" }}>
+                          <th className="py-1.5 pl-2 pr-2">#</th><th>TEAM</th>
+                          <th className="text-center">W</th><th className="text-center">L</th>
+                          <th className="text-center">PF</th><th className="text-center">PA</th>
+                          <th className="text-center">+/−</th><th className="text-center pr-2">PTS</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="text-[11px] mt-2" style={{ color: "#5f6b7d" }}>
+                      </thead>
+                      <tbody>
+                        {r2Table.map((r, ri) => (
+                          <tr key={r.id} className="dsp" style={{
+                            background: ri % 2 ? "#F1F3F6" : "#FFFFFF",
+                            color: r.id === "me" ? "#B30E33" : "#21262E",
+                            borderTop: "1px solid #E9E9EA",
+                            opacity: ri < 2 ? 1 : 0.55,
+                          }}>
+                            <td className="py-1.5 pl-2 pr-2">{ri + 1}{ri < 2 && <span style={{ color: "#1D8D47" }}> ▲</span>}</td>
+                            <td style={{ color: r.id === "me" ? "#B30E33" : r.c }}>{r.name.toUpperCase()}</td>
+                            <td className="text-center">{r.w}</td><td className="text-center">{r.l}</td>
+                            <td className="text-center">{r.pf}</td><td className="text-center">{r.pa}</td>
+                            <td className="text-center">{r.diff > 0 ? "+" : ""}{r.diff}</td>
+                            <td className="text-center dsp9 pr-2">{r.pts}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="text-[11px] mt-2" style={{ color: "#747679" }}>
                     CARRIED OVER — YOUR FIVE {r2.carried.my}–{r2.carried.op} {r2.rival.name.toUpperCase()} '{r2.rival.season.slice(2)}
                     {"   ·   "}{gauntlet[3].name} '{gauntlet[3].season.slice(2)} {r2.abCarry.sa}–{r2.abCarry.sb} {gauntlet[4].name} '{gauntlet[4].season.slice(2)}
                     <br />
@@ -2950,34 +2963,35 @@ export default function PerfectSweep() {
           {live && (
             <div className="panel mt-5 overflow-hidden pop">
               <div className="flex items-center justify-between px-4 pt-2">
-                <span className="eyebrow">
-                  <span style={{ color: "#E8465A" }}>● LIVE</span> — {live.round}
+                <span className="eyebrow inline-flex items-center gap-2">
+                  <span className="dsp text-[10px] px-2 py-0.5" style={{ background: "#FF0A3C", color: "#fff", borderRadius: 999 }}>● LIVE</span>
+                  {live.round}
                 </span>
-                <span className="dsp text-sm" style={{ color: "#93a1b5" }}>{live.clock}</span>
+                <span className="dsp text-sm" style={{ color: "#B30E33" }}>{live.clock}</span>
               </div>
               <div className="grid items-stretch mt-1" style={{ gridTemplateColumns: "1fr auto 1fr" }}>
                 <div className="flex items-center px-4 py-3"
-                  style={{ background: "linear-gradient(90deg,#E8465A22,transparent)", borderLeft: "4px solid #E8465A" }}>
-                  <span className="dsp9 text-lg" style={{ color: "#fff" }}>YOUR FIVE</span>
+                  style={{ background: "linear-gradient(90deg,#FF0A3C14,transparent)", borderLeft: "4px solid #FF0A3C" }}>
+                  <span className="dsp9 text-lg" style={{ color: "#111720" }}>YOUR FIVE</span>
                 </div>
                 <div className="scoreNum text-5xl px-5 flex items-center"
-                  style={{ background: "#0b0e15", borderTop: "1px solid #232b3d", borderBottom: "1px solid #232b3d" }}>
-                  {live.my}<span style={{ color: "#3d486c", padding: "0 8px", fontSize: 26 }}>—</span>{live.op}
+                  style={{ background: "#0E3244", borderRadius: 8 }}>
+                  {live.my}<span style={{ color: "#8FD4EC", padding: "0 8px", fontSize: 26 }}>—</span>{live.op}
                 </div>
                 <div className="flex items-center justify-end px-4 py-3"
-                  style={{ background: `linear-gradient(270deg, ${oppColor(live.opp)}33, transparent)`, borderRight: `4px solid ${oppColor(live.opp)}` }}>
-                  <span className="dsp9 text-lg" style={{ color: "#fff" }}>{live.opp.name.toUpperCase()} '{live.opp.season.slice(2)}</span>
+                  style={{ background: `linear-gradient(270deg, ${oppColor(live.opp)}1f, transparent)`, borderRight: `4px solid ${oppColor(live.opp)}` }}>
+                  <span className="dsp9 text-lg" style={{ color: "#111720" }}>{live.opp.name.toUpperCase()} '{live.opp.season.slice(2)}</span>
                 </div>
               </div>
               {speed === "slow" && (
-                <div className="px-4 py-3" style={{ borderTop: "1px solid #1c2333" }}>
+                <div className="px-4 py-3" style={{ borderTop: "1px solid #E9E9EA" }}>
                   {live.feed.length === 0 && <div className="eyebrow">TIP-OFF…</div>}
                   {live.feed.map((f, fi) => (
                     <div key={fi} className="flex gap-3 py-0.5 text-sm slideL"
                       style={{ opacity: 0.45 + (fi / Math.max(live.feed.length - 1, 1)) * 0.55 }}>
-                      <span className="dsp" style={{ color: "#5f6b7d", minWidth: 62 }}>{f.clock}</span>
-                      <span style={{ color: f.team === "me" ? "#ff8b98" : "#93a1b5" }}>{f.text}</span>
-                      <span className="dsp ml-auto" style={{ color: "#5f6b7d" }}>{f.my}–{f.op}</span>
+                      <span className="dsp" style={{ color: "#747679", minWidth: 62 }}>{f.clock}</span>
+                      <span style={{ color: f.team === "me" ? "#B30E33" : "#595A5C" }}>{f.text}</span>
+                      <span className="dsp ml-auto" style={{ color: "#747679" }}>{f.my}–{f.op}</span>
                     </div>
                   ))}
                 </div>
@@ -2989,8 +3003,8 @@ export default function PerfectSweep() {
           {screen === "sim" && !live && dreamTeamMode && (
             <div ref={ctaAnchorRef} className="panel text-center mt-5 p-5">
               <div className="eyebrow mb-1">BONUS GAME — FACE THE DREAM TEAM</div>
-              <div className="dsp9 text-2xl mb-3" style={{ color: "#fff" }}>
-                YOUR FIVE <span style={{ color: "#E8465A" }}>VS</span>{" "}
+              <div className="dsp9 text-2xl mb-3" style={{ color: "#111720" }}>
+                YOUR FIVE <span style={{ color: "#FF0A3C" }}>VS</span>{" "}
                 <span style={{ color: oppColor(DREAM_TEAM) }}>
                   {DREAM_TEAM.name} '{DREAM_TEAM.season.slice(2)}
                 </span>
@@ -3004,8 +3018,8 @@ export default function PerfectSweep() {
           {screen === "sim" && !live && !dreamTeamMode && tournamentGames.length < 8 && (
             <div ref={ctaAnchorRef} className="panel text-center mt-5 p-5">
               <div className="eyebrow mb-1">NEXT UP — {ROUNDS[gi]}</div>
-              <div className="dsp9 text-2xl mb-3" style={{ color: "#fff" }}>
-                YOUR FIVE <span style={{ color: "#E8465A" }}>VS</span>{" "}
+              <div className="dsp9 text-2xl mb-3" style={{ color: "#111720" }}>
+                YOUR FIVE <span style={{ color: "#FF0A3C" }}>VS</span>{" "}
                 <span style={{ color: oppColor(gauntlet[gi]) }}>
                   {gauntlet[gi].name.toUpperCase()} '{gauntlet[gi].season.slice(2)}
                 </span>
@@ -3032,7 +3046,7 @@ export default function PerfectSweep() {
                 runStats={runStats}
               />
 
-              <p className="text-center mt-4 text-sm px-2" style={{ color: "#93a1b5" }}>
+              <p className="text-center mt-4 text-sm px-2" style={{ color: "#595A5C" }}>
                 {perfect
                   ? dreamGamePlayed && dreamGame
                     ? dreamGame.my > dreamGame.op
@@ -3097,22 +3111,22 @@ export default function PerfectSweep() {
 
             {runStats.players.map((p) => (
               <div key={p.pos + p.name} className="flex items-center gap-3 px-2 py-2"
-                style={{ borderTop: "1px solid #1c2333" }}>
+                style={{ borderTop: "1px solid #E9E9EA" }}>
                 <Gem rt={p.rt} size={32} />
                 <div className="flex-1 min-w-0">
-                  <div className="dsp text-base truncate" style={{ color: "#fff" }}>
+                  <div className="dsp text-base truncate" style={{ color: "#111720" }}>
                     {p.pos} · #{p.n} {p.name}
                   </div>
-                  <div className="text-[11px]" style={{ color: "#5f6b7d" }}>{p.team} '{p.season.slice(2)}</div>
+                  <div className="text-[11px]" style={{ color: "#747679" }}>{p.team} '{p.season.slice(2)}</div>
                 </div>
                 <div className="text-right">
-                  <div className="dsp9 text-lg" style={{ color: "#ff8b98" }}>{p.ppg.toFixed(1)} <span className="text-xs" style={{ color: "#5f6b7d" }}>PPG</span></div>
-                  <div className="text-[11px]" style={{ color: "#5f6b7d" }}>BEST {p.best} · TOTAL {p.tot}</div>
+                  <div className="dsp9 text-lg" style={{ color: "#B30E33" }}>{p.ppg.toFixed(1)} <span className="text-xs" style={{ color: "#747679" }}>PPG</span></div>
+                  <div className="text-[11px]" style={{ color: "#747679" }}>BEST {p.best} · TOTAL {p.tot}</div>
                 </div>
               </div>
             ))}
 
-            <div className="grid grid-cols-5 gap-2 mt-3 pt-3" style={{ borderTop: "1px solid #232b3d" }}>
+            <div className="grid grid-cols-5 gap-2 mt-3 pt-3" style={{ borderTop: "1px solid #E9E9EA" }}>
               {[
                 [`OVR ${runStats.ovr}`, "TEAM RATING"],
                 [runStats.ppgF.toFixed(1), "PTS FOR / G"],
@@ -3121,7 +3135,7 @@ export default function PerfectSweep() {
                 [`+${runStats.bigWin}`, "BIGGEST WIN"],
               ].map(([v, l]) => (
                 <div key={l} className="text-center">
-                  <div className="dsp9 text-xl" style={{ color: "#EAF0F7" }}>{v}</div>
+                  <div className="dsp9 text-xl" style={{ color: "#111720" }}>{v}</div>
                   <div className="eyebrow" style={{ fontSize: 9 }}>{l}</div>
                 </div>
               ))}
@@ -3146,16 +3160,16 @@ export default function PerfectSweep() {
             <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
               <span className="unskew">← HOME</span>
             </button>
-            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · ARCHIVE</div>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#B30E33" }}>PERFECT SWEEP · ARCHIVE</div>
           </div>
           <div className="panel p-5 mb-4">
-            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#232b3d" }}>
-              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>THE TEAMS</h1>
-              <div className="eyebrow" style={{ color: "#93a1b5" }}>
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#E9E9EA" }}>
+              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#111720", lineHeight: 0.95 }}>THE TEAMS</h1>
+              <div className="eyebrow" style={{ color: "#595A5C" }}>
                 {NATIONS_ARCHIVE.length} NATIONS · {TEAMS.length} SQUADS
               </div>
             </div>
-            <p className="mt-4 text-sm" style={{ color: "#93a1b5" }}>
+            <p className="mt-4 text-sm" style={{ color: "#595A5C" }}>
               Every nation in the draft pool — powerhouses, dark horses, and defunct federations.
               Pick a country to see its World Cup squads year by year.
             </p>
@@ -3169,8 +3183,8 @@ export default function PerfectSweep() {
                 className="panel px-4 py-3 text-left flex items-center justify-between gap-3 transition-colors"
                 style={{ borderLeft: `3px solid ${n.c}` }}
               >
-                <span className="dsp text-base" style={{ color: "#EAF0F7" }}>{n.name}</span>
-                <span className="eyebrow shrink-0" style={{ color: "#7d8ba0" }}>
+                <span className="dsp text-base" style={{ color: "#111720" }}>{n.name}</span>
+                <span className="eyebrow shrink-0" style={{ color: "#747679" }}>
                   {n.squads.length} SQUAD{n.squads.length !== 1 ? "S" : ""}
                 </span>
               </button>
@@ -3182,7 +3196,7 @@ export default function PerfectSweep() {
       {/* ============ NATION DETAIL ============ */}
       {screen === "team" && !browseNationData && (
         <div className="max-w-3xl mx-auto px-4 py-12 text-center pop">
-          <div className="eyebrow mb-3" style={{ color: "#f08a8a" }}>NATION NOT FOUND</div>
+          <div className="eyebrow mb-3" style={{ color: "#B30E33" }}>NATION NOT FOUND</div>
           <button onClick={openTeams} className="btnP skew dsp9 text-lg px-8 py-3">
             <span className="unskew">← BACK TO TEAMS</span>
           </button>
@@ -3195,21 +3209,21 @@ export default function PerfectSweep() {
             <button onClick={openTeams} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
               <span className="unskew">← TEAMS</span>
             </button>
-            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · TEAM</div>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#B30E33" }}>PERFECT SWEEP · TEAM</div>
           </div>
           <div className="panel p-5 mb-4" style={{ borderTop: `3px solid ${browseNationData.c}` }}>
-            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#232b3d" }}>
-              <h1 className="dsp9 text-3xl sm:text-4xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#E9E9EA" }}>
+              <h1 className="dsp9 text-3xl sm:text-4xl" style={{ color: "#111720", lineHeight: 0.95 }}>
                 {browseNationData.name.toUpperCase()}
               </h1>
-              <div className="eyebrow" style={{ color: "#93a1b5" }}>
+              <div className="eyebrow" style={{ color: "#595A5C" }}>
                 {browseNationData.squads.length} SQUAD{browseNationData.squads.length !== 1 ? "S" : ""} ·{" "}
                 {browseNationData.squads.length === 1
                   ? browseNationData.squads[0].season
                   : `${browseNationData.squads[browseNationData.squads.length - 1].season}–${browseNationData.squads[0].season}`}
               </div>
             </div>
-            <p className="mt-4 text-sm" style={{ color: "#93a1b5" }}>
+            <p className="mt-4 text-sm" style={{ color: "#595A5C" }}>
               Draftable World Cup squads for {browseNationData.name} in the Perfect Sweep pool.
               Ratings and traits match what you can roll in-game.
             </p>
@@ -3220,12 +3234,12 @@ export default function PerfectSweep() {
                 <div className="flex items-center justify-between gap-3 px-4 py-3"
                   style={{
                     background: `linear-gradient(90deg, ${squad.c}22, transparent)`,
-                    borderBottom: "1px solid #1c2333",
+                    borderBottom: "1px solid #E9E9EA",
                     borderRadius: "inherit",
                   }}>
                   <div>
-                    <div className="eyebrow" style={{ color: "#93a1b5" }}>WORLD CUP</div>
-                    <div className="dsp9 text-2xl" style={{ color: "#fff" }}>{squad.season}</div>
+                    <div className="eyebrow" style={{ color: "#595A5C" }}>WORLD CUP</div>
+                    <div className="dsp9 text-2xl" style={{ color: "#111720" }}>{squad.season}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="eyebrow">OVR</span>
@@ -3235,17 +3249,17 @@ export default function PerfectSweep() {
                 <div>
                   {squad.players.map((p) => (
                     <div key={`${p.n}-${p.name}`} className="flex items-center gap-3 px-4 py-2 relative"
-                      style={{ borderTop: "1px solid #1c2333", overflow: "visible" }}>
+                      style={{ borderTop: "1px solid #E9E9EA", overflow: "visible" }}>
                       <Gem rt={p.rt} size={32} />
                       <div className="flex-1 min-w-0 relative" style={{ overflow: "visible" }}>
-                        <div className="dsp text-sm truncate" style={{ color: "#fff" }}>
+                        <div className="dsp text-sm truncate" style={{ color: "#111720" }}>
                           {p.pos} · #{p.n} {p.name}
                         </div>
                         {playerTraits(p).map((id) => (
                           <TraitLabel key={id} traitId={id} />
                         ))}
                       </div>
-                      <div className="eyebrow" style={{ color: "#5f6b7d" }}>{p.rt}</div>
+                      <div className="eyebrow" style={{ color: "#747679" }}>{p.rt}</div>
                     </div>
                   ))}
                 </div>
@@ -3262,38 +3276,38 @@ export default function PerfectSweep() {
             <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
               <span className="unskew">← HOME</span>
             </button>
-            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · GUIDE</div>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#B30E33" }}>PERFECT SWEEP · GUIDE</div>
           </div>
 
           <div className="panel p-5 mb-4">
-            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#232b3d" }}>
-              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>HOW TO PLAY</h1>
-              <div className="eyebrow" style={{ color: "#93a1b5" }}>ROLL · DRAFT · SWEEP</div>
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#E9E9EA" }}>
+              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#111720", lineHeight: 0.95 }}>HOW TO PLAY</h1>
+              <div className="eyebrow" style={{ color: "#595A5C" }}>ROLL · DRAFT · SWEEP</div>
             </div>
-            <p className="mt-4 text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: "#595A5C" }}>
               Perfect Sweep is a basketball drafting game: build a dream national five from legendary
               World Cup squads, then simulate a full tournament. The ultimate mark is the{" "}
-              <b style={{ color: "#ff8b98" }}>Perfect Sweep — 8–0</b>: win the Cup without losing a single game.
+              <b style={{ color: "#B30E33" }}>Perfect Sweep — 8–0</b>: win the Cup without losing a single game.
             </p>
           </div>
 
           <div className="panel p-5 mb-3">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>1 · THE DRAFT</h2>
-            <p className="text-sm leading-relaxed mb-3" style={{ color: "#93a1b5" }}>
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>1 · THE DRAFT</h2>
+            <p className="text-sm leading-relaxed mb-3" style={{ color: "#595A5C" }}>
               Tip off and roll. Each roll draws a historic national squad — USA &apos;94, Spain &apos;06, Slovenia &apos;23.
-              From that squad you sign <b style={{ color: "#c6d2e3" }}>one player</b> into an empty slot
+              From that squad you sign <b style={{ color: "#2E333B" }}>one player</b> into an empty slot
               (PG / SG / SF / PF / C). Then roll again until your five is set.
             </p>
-            <ul className="text-sm leading-relaxed space-y-2" style={{ color: "#c6d2e3" }}>
-              <li><b style={{ color: "#ff8b98" }}>Roll</b> — draw a new nation and year to pick from.</li>
-              <li><b style={{ color: "#ff8b98" }}>Swaps</b> — twice per run you can switch nation (same year) or year (same nation).</li>
-              <li><b style={{ color: "#ff8b98" }}>Tactic</b> — Run &amp; Gun, Balanced, or Lockdown, trading pace, offense, and defense.</li>
+            <ul className="text-sm leading-relaxed space-y-2" style={{ color: "#2E333B" }}>
+              <li><b style={{ color: "#B30E33" }}>Roll</b> — draw a new nation and year to pick from.</li>
+              <li><b style={{ color: "#B30E33" }}>Swaps</b> — twice per run you can switch nation (same year) or year (same nation).</li>
+              <li><b style={{ color: "#B30E33" }}>Tactic</b> — Run &amp; Gun, Balanced, or Lockdown, trading pace, offense, and defense.</li>
             </ul>
           </div>
 
           <div className="panel p-5 mb-3">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>2 · THE WORLD CUP</h2>
-            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>2 · THE WORLD CUP</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#595A5C" }}>
               With your five locked, you play eight games: three group games, two second-round games,
               then quarterfinal, semifinal, and the Final. Group stages use a real table — finish outside
               the top two and you&apos;re out even with a win left on the board. Knockouts are win or go home.
@@ -3302,21 +3316,21 @@ export default function PerfectSweep() {
           </div>
 
           <div className="panel p-5 mb-3">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>3 · THE PERFECT SWEEP</h2>
-            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
-              Win the Final and you&apos;re <b style={{ color: "#c6d2e3" }}>World Champions</b> — even if you dropped
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>3 · THE PERFECT SWEEP</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#595A5C" }}>
+              Win the Final and you&apos;re <b style={{ color: "#2E333B" }}>World Champions</b> — even if you dropped
               a group game or two along the way. Go through all eight without a single loss and you&apos;ve
-              earned the <b style={{ color: "#7ee2a8" }}>Perfect Sweep</b>. That unlocks a bonus game against
+              earned the <b style={{ color: "#1D8D47" }}>Perfect Sweep</b>. That unlocks a bonus game against
               the 1992 Dream Team. A loss anywhere before the Final kills the sweep, but not necessarily the Cup.
             </p>
           </div>
 
           <div className="panel p-5 mb-3">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>4 · TRAITS</h2>
-            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>4 · TRAITS</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#595A5C" }}>
               Some legends carry traits — green boosts or red risks — that can fire mid-game and swing a quarter.
               Hover a trait in the{" "}
-              <button type="button" onClick={openTeams} className="underline" style={{ color: "#ff8b98" }}>
+              <button type="button" onClick={openTeams} className="underline" style={{ color: "#B30E33" }}>
                 TEAMS
               </button>
               {" "}archive to see what it does before you draft.
@@ -3324,8 +3338,8 @@ export default function PerfectSweep() {
           </div>
 
           <div className="panel p-5 mb-5">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>5 · SHARE YOUR RUN</h2>
-            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>5 · SHARE YOUR RUN</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#595A5C" }}>
               When the tournament ends, open your Tournament Card and copy the link. Anyone with the URL
               can see your five, the path you took, and whether the Perfect Sweep held.
             </p>
@@ -3347,15 +3361,15 @@ export default function PerfectSweep() {
             <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
               <span className="unskew">← HOME</span>
             </button>
-            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · ABOUT</div>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#B30E33" }}>PERFECT SWEEP · ABOUT</div>
           </div>
 
           <div className="panel p-5 mb-4">
-            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#232b3d" }}>
-              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>ABOUT</h1>
-              <div className="eyebrow" style={{ color: "#93a1b5" }}>8–0 · THE MARK</div>
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b pb-3" style={{ borderColor: "#E9E9EA" }}>
+              <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#111720", lineHeight: 0.95 }}>ABOUT</h1>
+              <div className="eyebrow" style={{ color: "#595A5C" }}>8–0 · THE MARK</div>
             </div>
-            <p className="mt-4 text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: "#595A5C" }}>
               Perfect Sweep brings legendary FIBA World Cup national squads into one drafting gauntlet.
               You roll nations across eras, build a dream five that never shared a locker room, and chase
               the rarest finish in the tournament: win the Cup without losing a single game.
@@ -3363,8 +3377,8 @@ export default function PerfectSweep() {
           </div>
 
           <div className="panel p-5 mb-3">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>THE IDEA</h2>
-            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>THE IDEA</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#595A5C" }}>
               It started from a simple thought: what if Sabonis of &apos;86 could share the floor with Luka of &apos;23?
               Perfect Sweep turns that into a run — roll a squad, sign one star per position, pick a tactic,
               and simulate an eight-game World Cup path. Lift the trophy with losses along the way and you&apos;re
@@ -3374,34 +3388,34 @@ export default function PerfectSweep() {
           </div>
 
           <div className="panel p-5 mb-3">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>THE ARCHIVE</h2>
-            <p className="text-sm mb-3" style={{ color: "#93a1b5" }}>
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>THE ARCHIVE</h2>
+            <p className="text-sm mb-3" style={{ color: "#595A5C" }}>
               Behind every roll is a curated pool of World Cup basketball:
             </p>
-            <ul className="text-sm leading-relaxed space-y-2" style={{ color: "#c6d2e3" }}>
+            <ul className="text-sm leading-relaxed space-y-2" style={{ color: "#2E333B" }}>
               <li>
-                <b style={{ color: "#ff8b98" }}>{ARCHIVE_STATS.nations} nations</b>
+                <b style={{ color: "#B30E33" }}>{ARCHIVE_STATS.nations} nations</b>
                 {" "}in the draft pool — from powerhouses to dark horses, including defunct sides like
                 the Soviet Union and Yugoslavia.
               </li>
               <li>
-                <b style={{ color: "#ff8b98" }}>{ARCHIVE_STATS.years.count} World Cups</b>
+                <b style={{ color: "#B30E33" }}>{ARCHIVE_STATS.years.count} World Cups</b>
                 {" "}represented, from {ARCHIVE_STATS.years.first} to {ARCHIVE_STATS.years.last},
                 with every podium squad from that modern era playable.
               </li>
               <li>
-                <b style={{ color: "#ff8b98" }}>{ARCHIVE_STATS.squads} squads</b>
+                <b style={{ color: "#B30E33" }}>{ARCHIVE_STATS.squads} squads</b>
                 {" "}and{" "}
-                <b style={{ color: "#ff8b98" }}>{ARCHIVE_STATS.players} players</b>
+                <b style={{ color: "#B30E33" }}>{ARCHIVE_STATS.players} players</b>
                 , each with a position, number, and 2K-style rating
                 {ARCHIVE_STATS.traits > 0 ? (
                   <> — plus {ARCHIVE_STATS.traits} with gameplay traits that can swing a quarter</>
                 ) : null}.
               </li>
             </ul>
-            <p className="text-sm mt-3 leading-relaxed" style={{ color: "#93a1b5" }}>
+            <p className="text-sm mt-3 leading-relaxed" style={{ color: "#595A5C" }}>
               Browse the full list anytime from{" "}
-              <button type="button" onClick={openTeams} className="underline" style={{ color: "#ff8b98" }}>
+              <button type="button" onClick={openTeams} className="underline" style={{ color: "#B30E33" }}>
                 TEAMS
               </button>
               .
@@ -3409,8 +3423,8 @@ export default function PerfectSweep() {
           </div>
 
           <div className="panel p-5 mb-3">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>HOW PLAYERS ARE RATED</h2>
-            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>HOW PLAYERS ARE RATED</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#595A5C" }}>
               Each player carries a rating that feeds the sim, shown as a gem on the draft board.
               Ratings are subjective by nature — they aim to capture a player&apos;s level in that specific
               World Cup, not their full career peak. Some stars also carry traits (boosts or risks) that
@@ -3419,8 +3433,8 @@ export default function PerfectSweep() {
           </div>
 
           <div className="panel p-5 mb-5">
-            <h2 className="dsp text-xl mb-2" style={{ color: "#EAF0F7" }}>FREE AND NO CATCH</h2>
-            <p className="text-sm leading-relaxed" style={{ color: "#93a1b5" }}>
+            <h2 className="dsp text-xl mb-2" style={{ color: "#111720" }}>FREE AND NO CATCH</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "#595A5C" }}>
               Perfect Sweep is free to play. No account, no paywall — tip off, draft, and share a finished
               run with a link. The Perfect Sweep is rare on purpose. That&apos;s the point.
             </p>
@@ -3442,26 +3456,26 @@ export default function PerfectSweep() {
             <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
               <span className="unskew">← HOME</span>
             </button>
-            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · HALL OF FAME</div>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#B30E33" }}>PERFECT SWEEP · HALL OF FAME</div>
           </div>
 
           <div className="mb-5 text-center">
-            <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>HALL OF FAME</h1>
-            <p className="mt-3 text-sm max-w-lg mx-auto" style={{ color: "#93a1b5" }}>
+            <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#111720", lineHeight: 0.95 }}>HALL OF FAME</h1>
+            <p className="mt-3 text-sm max-w-lg mx-auto" style={{ color: "#595A5C" }}>
               Reserved for Perfect Sweep + Dream Team conquerors. Score = sum of margins.
             </p>
           </div>
 
           {lbLoading && (
-            <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>Loading…</div>
+            <div className="panel p-6 text-center text-sm" style={{ color: "#595A5C" }}>Loading…</div>
           )}
           {!lbLoading && lbError && (
-            <div className="panel p-6 text-center text-sm" style={{ color: "#ff8b98" }}>{lbError}</div>
+            <div className="panel p-6 text-center text-sm" style={{ color: "#B30E33" }}>{lbError}</div>
           )}
           {!lbLoading && !lbError && lbEntries.length === 0 && (
             <div className="panel p-8 text-center">
-              <div className="dsp9 text-2xl" style={{ color: "#EAF0F7" }}>THE THRONE IS EMPTY</div>
-              <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: "#93a1b5" }}>
+              <div className="dsp9 text-2xl" style={{ color: "#111720" }}>THE THRONE IS EMPTY</div>
+              <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: "#595A5C" }}>
                 Nobody's gone 8–0 and taken down the Dream Team yet. Be the first name on the board.
               </p>
             </div>
@@ -3470,7 +3484,7 @@ export default function PerfectSweep() {
             <div className="panel overflow-hidden">
               <div
                 className="grid gap-2 px-4 py-2 eyebrow"
-                style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", color: "#7d8ba0", borderBottom: "1px solid #232b3d" }}
+                style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", color: "#747679", borderBottom: "1px solid #E9E9EA" }}
               >
                 <span>#</span>
                 <span>NICK</span>
@@ -3484,18 +3498,18 @@ export default function PerfectSweep() {
                   <div
                     key={`${e.rank}-${e.nick}-${e.score}`}
                     className="grid gap-2 px-4 py-3 items-center text-sm"
-                    style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", borderBottom: "1px solid #1a2233" }}
+                    style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", borderBottom: "1px solid #E9E9EA" }}
                   >
-                    <span className="dsp9" style={{ color: e.rank <= 3 ? "#E8465A" : "#7d8ba0" }}>{e.rank}</span>
-                    <span className="dsp truncate" style={{ color: "#EAF0F7" }}>{e.nick}</span>
-                    <span style={{ color: "#c6d2e3" }}>
+                    <span className="dsp9" style={{ color: e.rank <= 3 ? "#FF0A3C" : "#747679" }}>{e.rank}</span>
+                    <span className="dsp truncate" style={{ color: "#111720" }}>{e.nick}</span>
+                    <span style={{ color: "#2E333B" }}>
                       <span className="mr-1.5" aria-hidden>{c?.flag || "🌍"}</span>
                       {c?.name || e.country}
                     </span>
-                    <span className="dsp9 text-right" style={{ color: e.ovr != null ? "#c6d2e3" : "#5f6b7d" }}>
+                    <span className="dsp9 text-right" style={{ color: e.ovr != null ? "#2E333B" : "#747679" }}>
                       {e.ovr != null ? e.ovr : "—"}
                     </span>
-                    <span className="dsp9 text-right" style={{ color: "#7ee2a8" }}>{e.score}</span>
+                    <span className="dsp9 text-right" style={{ color: "#1D8D47" }}>{e.score}</span>
                   </div>
                 );
               })}
@@ -3516,34 +3530,34 @@ export default function PerfectSweep() {
           type="button"
           onClick={openTeams}
           className="eyebrow cursor-pointer"
-          style={{ color: screen === "teams" || screen === "team" ? "#ff8b98" : "#93a1b5", letterSpacing: "inherit" }}
+          style={{ color: screen === "teams" || screen === "team" ? "#05729A" : "#747679", letterSpacing: "inherit" }}
         >
           TEAMS
         </button>
-        <span style={{ color: "#3d486c" }}>·</span>
+        <span style={{ color: "#D8D9DA" }}>·</span>
         <button
           type="button"
           onClick={openHowTo}
           className="eyebrow cursor-pointer"
-          style={{ color: screen === "howto" ? "#ff8b98" : "#93a1b5", letterSpacing: "inherit" }}
+          style={{ color: screen === "howto" ? "#05729A" : "#747679", letterSpacing: "inherit" }}
         >
           HOW TO PLAY
         </button>
-        <span style={{ color: "#3d486c" }}>·</span>
+        <span style={{ color: "#D8D9DA" }}>·</span>
         <button
           type="button"
           onClick={openLeaderboard}
           className="eyebrow cursor-pointer"
-          style={{ color: screen === "leaderboard" ? "#ff8b98" : "#93a1b5", letterSpacing: "inherit" }}
+          style={{ color: screen === "leaderboard" ? "#05729A" : "#747679", letterSpacing: "inherit" }}
         >
           HALL OF FAME
         </button>
-        <span style={{ color: "#3d486c" }}>·</span>
+        <span style={{ color: "#D8D9DA" }}>·</span>
         <button
           type="button"
           onClick={openAbout}
           className="eyebrow cursor-pointer"
-          style={{ color: screen === "about" ? "#ff8b98" : "#93a1b5", letterSpacing: "inherit" }}
+          style={{ color: screen === "about" ? "#05729A" : "#747679", letterSpacing: "inherit" }}
         >
           ABOUT
         </button>
