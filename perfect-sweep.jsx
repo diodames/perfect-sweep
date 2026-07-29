@@ -484,6 +484,12 @@ function readShareFromUrl() {
   return decodeRunShare(window.location.search);
 }
 
+function readShortIdFromUrl() {
+  if (typeof window === "undefined") return null;
+  const id = new URLSearchParams(window.location.search).get("r");
+  return id && /^[A-Za-z0-9_-]{4,16}$/.test(id) ? id : null;
+}
+
 function nationSlug(name) {
   return String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -520,7 +526,7 @@ const ARCHIVE_STATS = {
 function readBrowseFromUrl() {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
-  if (params.has("card")) return null;
+  if (params.has("card") || params.has("r")) return null;
   const teamSlug = params.get("team");
   if (teamSlug) {
     const nation = NATIONS_ARCHIVE.find((n) => n.slug === teamSlug);
@@ -1942,8 +1948,11 @@ const CountryCombobox = ({ value, onChange }) => {
 
 export default function PerfectSweep() {
   const shareInit = useMemo(() => readShareFromUrl(), []);
-  const browseInit = useMemo(() => (shareInit ? null : readBrowseFromUrl()), [shareInit]);
-  const [screen, setScreen] = useState(shareInit ? "card" : browseInit?.screen ?? "home");
+  const shortInit = useMemo(() => (shareInit ? null : readShortIdFromUrl()), [shareInit]);
+  const browseInit = useMemo(() => (shareInit || shortInit ? null : readBrowseFromUrl()), [shareInit, shortInit]);
+  const [screen, setScreen] = useState(shareInit ? "card" : shortInit ? "shareload" : browseInit?.screen ?? "home");
+  const [shortId, setShortId] = useState(shortInit);
+  const shortRunRef = useRef(null); // { id, payload } — which encoded run the short id belongs to
   const [browseNation, setBrowseNation] = useState(browseInit?.browseNation ?? null);
   const [deck, setDeck] = useState([]);
   const [rolls, setRolls] = useState(shareInit?.rolls ?? 0);
@@ -1964,6 +1973,7 @@ export default function PerfectSweep() {
   const [seenYears, setSeenYears] = useState([]);
   const [openFlow, setOpenFlow] = useState({});
   const [linkCopied, setLinkCopied] = useState(false);
+  const [storyBusy, setStoryBusy] = useState(false);
   const [dreamTeamMode, setDreamTeamMode] = useState(false);
   const [dreamGamePlayed, setDreamGamePlayed] = useState(
     () => !!(shareInit?.games?.some(isDreamGame)),
@@ -2225,23 +2235,133 @@ export default function PerfectSweep() {
     runLiveGame(g, box, DREAM_TEAM_ROUND, commitDreamGame);
   };
 
-  const shareLink = () => {
-    const path = encodeRunShare({ rolls, groupOut, r2Out, lineup, games });
-    const url = `${window.location.origin}${path}`;
-    window.history.replaceState(null, "", path);
+  // Boot from a short share link: /r/<id> redirects here as /?r=<id>.
+  useEffect(() => {
+    if (!shortInit) return;
+    let cancelled = false;
+    const fail = () => {
+      if (cancelled) return;
+      setShortId(null);
+      setScreen("home");
+      window.history.replaceState(null, "", window.location.pathname);
+    };
+    fetch(`/api/runs?id=${encodeURIComponent(shortInit)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return;
+        const decoded = d?.payload ? decodeRunShare(`?card=${d.payload}`) : null;
+        if (!decoded) return fail();
+        shortRunRef.current = { id: shortInit, payload: d.payload };
+        setRolls(decoded.rolls); setLineup(decoded.lineup); setGames(decoded.games);
+        setGi(decoded.gi); setGroupOut(decoded.groupOut); setR2Out(decoded.r2Out);
+        setDreamGamePlayed(decoded.games.some(isDreamGame));
+        setScreen("card");
+      })
+      .catch(fail);
+    return () => { cancelled = true; };
+  }, [shortInit]); // eslint-disable-line
+
+  /* Display-only summary sent alongside the payload — powers the /r/:id OG preview. */
+  const buildShareMeta = () => ({
+    v: 1,
+    result: perfect ? "sweep" : worldChampions ? "champs" : groupOut ? "group" : r2Out ? "r2" : eliminated ? "elim" : "run",
+    w: wins,
+    l: losses,
+    margins: tournamentGames.map((g) => g.my - g.op),
+    dream: dreamGame ? dreamGame.my - dreamGame.op : null,
+    score: runStats?.marginScore ?? null,
+    ovr: runStats?.ovr ?? Math.round(myRt),
+    players: SLOTS.map((s) => lineup[s]).filter(Boolean).map((p) => ({
+      pos: p.pos, name: p.name, rt: p.rt, t: `${p.team} '${String(p.season).slice(2)}`,
+    })),
+  });
+
+  const buildShareText = (url) => {
+    const grid = tournamentGames.map((g) => (g.my > g.op ? "🟩" : "🟥")).join("");
+    const star = dreamGame ? (dreamGame.my > dreamGame.op ? "⭐" : "⬛") : "";
+    const rec = `${wins}–${losses}`;
+    const headline = perfect
+      ? `PERFECT SWEEP ✅ ${rec}${runStats?.marginScore != null ? ` (+${runStats.marginScore})` : ""}`
+      : worldChampions ? `WORLD CHAMPIONS 🏆 ${rec}`
+      : eliminated ? `THE CUP CLAIMED MY FIVE ❌ ${rec}`
+      : `MY WORLD CUP RUN — ${rec}`;
+    return `${headline}\n${grid}${star}\n${url}`;
+  };
+
+  // POST the run once and reuse the content-hash id for link + story image.
+  const ensureShortRun = async () => {
+    const payload = encodeRunShare({ rolls, groupOut, r2Out, lineup, games }).split("card=")[1];
+    if (shortRunRef.current?.payload === payload) return shortRunRef.current.id;
+    const res = await fetch("/api/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payload, meta: buildShareMeta() }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.id) throw new Error(data?.error || "share failed");
+    shortRunRef.current = { id: data.id, payload };
+    setShortId(data.id);
+    return data.id;
+  };
+
+  const shareLink = async () => {
     const done = () => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); };
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(done);
+    let url;
+    try {
+      const id = await ensureShortRun();
+      url = `${window.location.origin}/r/${id}`;
+      window.history.replaceState(null, "", `${window.location.pathname}?r=${id}`);
+    } catch (e) {
+      // API down → fall back to the legacy long ?card= link (no OG preview, but still works).
+      const path = encodeRunShare({ rolls, groupOut, r2Out, lineup, games });
+      url = `${window.location.origin}${path}`;
+      window.history.replaceState(null, "", path);
+    }
+    const text = buildShareText(url);
+    if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      try { await navigator.share({ text }); done(); return; }
+      catch (e) { if (e?.name === "AbortError") return; }
+    }
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(done);
     else {
       const ta = document.createElement("textarea");
-      ta.value = url; document.body.appendChild(ta); ta.select();
+      ta.value = text; document.body.appendChild(ta); ta.select();
       try { document.execCommand("copy"); } catch (e) {}
       document.body.removeChild(ta); done();
     }
   };
 
+  const shareStoryImage = async () => {
+    if (storyBusy) return;
+    setStoryBusy(true);
+    try {
+      const id = await ensureShortRun();
+      window.history.replaceState(null, "", `${window.location.pathname}?r=${id}`);
+      const res = await fetch(`/api/og?id=${id}&format=story`);
+      if (!res.ok) throw new Error("image failed");
+      const blob = await res.blob();
+      const file = new File([blob], "perfect-sweep-story.png", { type: "image/png" });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); setStoryBusy(false); return; }
+        catch (e) { if (e?.name === "AbortError") { setStoryBusy(false); return; } }
+      }
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href; a.download = "perfect-sweep-story.png";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(href), 10000);
+    } catch (e) {}
+    setStoryBusy(false);
+  };
+
   useEffect(() => {
+    if (screen === "shareload") return; // boot from /r/<id> in flight — leave the URL alone
     if (screen === "card" && games.length && SLOTS.every((s) => lineup[s])) {
-      window.history.replaceState(null, "", encodeRunShare({ rolls, groupOut, r2Out, lineup, games }));
+      const path = encodeRunShare({ rolls, groupOut, r2Out, lineup, games });
+      const short = shortRunRef.current;
+      window.history.replaceState(null, "", short && path.endsWith(short.payload)
+        ? `${window.location.pathname}?r=${short.id}`
+        : path);
       return;
     }
     if (screen === "teams") {
@@ -2265,10 +2385,10 @@ export default function PerfectSweep() {
       return;
     }
     const q = window.location.search;
-    if (q.includes("card=") || q.includes("teams") || q.includes("team=") || q.includes("about") || q.includes("howto") || q.includes("leaderboard")) {
+    if (q.includes("card=") || /[?&]r=/.test(q) || q.includes("teams") || q.includes("team=") || q.includes("about") || q.includes("howto") || q.includes("leaderboard")) {
       window.history.replaceState(null, "", window.location.pathname);
     }
-  }, [screen, rolls, groupOut, r2Out, lineup, games, browseNation]);
+  }, [screen, rolls, groupOut, r2Out, lineup, games, browseNation, shortId]);
 
   // After a match ends, bring the continue CTA into view (esp. mobile + standings).
   useEffect(() => {
@@ -2288,7 +2408,7 @@ export default function PerfectSweep() {
   }, [live, screen, games.length, dreamTeamMode, gi]);
 
   const reset = () => {
-    runId.current++; setLive(null); setLinkCopied(false); setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
+    runId.current++; setLive(null); setLinkCopied(false); setShortId(null); setStoryBusy(false); shortRunRef.current = null; setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
     setSwapsLeft(2); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false);
     setPickedThisRoll(false); setSeenNations([]); setSeenYears([]); setOpenFlow({});
     setDreamTeamMode(false); setDreamGamePlayed(false);
@@ -3066,6 +3186,13 @@ export default function PerfectSweep() {
         </div>
       )}
 
+      {/* ============ SHARED RUN LOADING ============ */}
+      {screen === "shareload" && (
+        <div className="max-w-3xl mx-auto px-4 py-24 text-center pop">
+          <div className="eyebrow" style={{ fontSize: 12 }}>LOADING SHARED RUN…</div>
+        </div>
+      )}
+
       {/* ============ TOURNAMENT CARD ============ */}
       {screen === "card" && runStats && (
         <div className="max-w-3xl mx-auto px-4 py-6 pop">
@@ -3131,6 +3258,9 @@ export default function PerfectSweep() {
           <div className="flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 mt-6 px-4 max-w-md sm:max-w-none mx-auto">
             <button onClick={() => setScreen("done")} className="skew chip dsp9 text-base sm:text-lg px-6 sm:px-8 py-3 btnG">
               <span className="unskew whitespace-nowrap">← BACK TO RESULTS</span>
+            </button>
+            <button onClick={shareStoryImage} disabled={storyBusy} className="skew chip dsp9 text-base sm:text-lg px-6 sm:px-8 py-3 btnG" style={storyBusy ? { opacity: 0.6 } : undefined}>
+              <span className="unskew whitespace-nowrap">{storyBusy ? "RENDERING…" : "📸 STORY IMAGE"}</span>
             </button>
             <button onClick={reset} className="skew chip dsp9 text-base sm:text-lg px-6 sm:px-8 py-3 btnP">
               <span className="unskew whitespace-nowrap">RUN IT BACK<BtnArrow /></span>
