@@ -15,22 +15,28 @@ function baseUrl(req) {
 
 function titleFor(meta) {
   const rec = `${meta.w}–${meta.l}`;
+  const daily = meta.mode === "daily" && meta.n ? `DAILY #${meta.n} · ` : "";
   switch (meta.result) {
     case "sweep": {
       const score = meta.score != null ? ` (+${meta.score})` : "";
       return meta.dream != null && meta.dream > 0
-        ? `PERFECT SWEEP ✅ ${rec} — DREAM TEAM BEATEN${score}`
-        : `PERFECT SWEEP ✅ ${rec}`;
+        ? `${daily}PERFECT SWEEP ✅ ${rec} — DREAM TEAM BEATEN${score}`
+        : `${daily}PERFECT SWEEP ✅ ${rec}`;
     }
-    case "champs": return `WORLD CHAMPIONS 🏆 ${rec}`;
-    case "group": return `OUT IN THE GROUP STAGE ❌ ${rec}`;
-    case "r2": return `OUT IN THE 2ND ROUND ❌ ${rec}`;
-    case "elim": return `ELIMINATED ❌ ${rec}`;
-    default: return `MY WORLD CUP RUN — ${rec}`;
+    case "champs": return `${daily}WORLD CHAMPIONS 🏆 ${rec}`;
+    case "group": return `${daily}OUT IN THE GROUP STAGE ❌ ${rec}`;
+    case "r2": return `${daily}OUT IN THE 2ND ROUND ❌ ${rec}`;
+    case "elim": return `${daily}ELIMINATED ❌ ${rec}`;
+    default: return `${daily}MY WORLD CUP RUN — ${rec}`;
   }
 }
 
 function descriptionFor(meta) {
+  if (meta.mode === "daily") {
+    const eff = meta.efficiency != null ? ` · EFF ${meta.efficiency}` : "";
+    const ovr = meta.ovr ? `OVR ${meta.ovr}` : "";
+    return `Daily Challenge #${meta.n || "?"} · ${meta.w}–${meta.l}${ovr ? ` · ${ovr}` : ""}${eff}. Play today's challenge at perfectsweep.app/?daily`;
+  }
   const five = (meta.players || [])
     .map((p) => `${p.pos} ${p.name}${p.t ? ` (${p.t})` : ""}`)
     .join(" · ");

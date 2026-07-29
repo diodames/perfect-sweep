@@ -116,9 +116,13 @@ function brandChip(record, fontSize, pad) {
 function landscape(meta, host) {
   const t = THEME[meta.result] || THEME.run;
   const record = `${meta.w}–${meta.l}`;
+  const isDaily = meta.mode === "daily";
+  const brandLabel = isDaily && meta.n ? `DAILY #${meta.n}` : "PERFECT SWEEP";
+  const rightLabel = isDaily ? "DAILY CHALLENGE" : "WORLD CUP GAUNTLET";
   const scoreLine =
     meta.result === "sweep" && meta.score != null ? `+${meta.score} MARGIN SCORE` :
-    meta.result === "sweep" && meta.dream > 0 ? "DREAM TEAM BEATEN" : null;
+    meta.result === "sweep" && meta.dream > 0 ? "DREAM TEAM BEATEN" :
+    isDaily && meta.efficiency != null ? `EFF ${meta.efficiency}` : null;
 
   // Fixed canvas: space-between distributes leftover height BETWEEN bands
   // so air sits between groups, not in a dead stack at the bottom.
@@ -133,9 +137,9 @@ function landscape(meta, host) {
       el({ alignItems: "center", justifyContent: "space-between", width: "100%" }, [
         el({ alignItems: "center", gap: 22 }, [
           brandChip(record, 30, 22),
-          el({ fontSize: 24, fontWeight: 700, letterSpacing: 4, color: "#7e8aa0" }, "PERFECT SWEEP"),
+          el({ fontSize: 24, fontWeight: 700, letterSpacing: 4, color: "#7e8aa0" }, brandLabel),
         ]),
-        el({ fontSize: 20, fontWeight: 700, letterSpacing: 4, color: "#7e8aa0" }, "WORLD CUP GAUNTLET"),
+        el({ fontSize: 20, fontWeight: 700, letterSpacing: 4, color: "#7e8aa0" }, rightLabel),
       ]),
 
       // Result band: headline + score stay related; tiles sit a full step below
@@ -178,9 +182,14 @@ function landscape(meta, host) {
 function story(meta, host) {
   const t = THEME[meta.result] || THEME.run;
   const record = `${meta.w}–${meta.l}`;
+  const isDaily = meta.mode === "daily";
+  const subLabel = isDaily && meta.n
+    ? `DAILY CHALLENGE #${meta.n}`
+    : "PERFECT SWEEP · WORLD CUP GAUNTLET";
   const scoreLine =
     meta.result === "sweep" && meta.score != null ? `+${meta.score} MARGIN SCORE` :
-    meta.result === "sweep" && meta.dream > 0 ? "DREAM TEAM BEATEN" : null;
+    meta.result === "sweep" && meta.dream > 0 ? "DREAM TEAM BEATEN" :
+    isDaily && meta.efficiency != null ? `EFF ${meta.efficiency}` : null;
 
   return el(
     {
@@ -194,7 +203,7 @@ function story(meta, host) {
     [
       el({ flexDirection: "column", alignItems: "center", gap: 22 }, [
         brandChip(record, 40, 30),
-        el({ fontSize: 28, fontWeight: 700, letterSpacing: 6, color: "#7e8aa0" }, "PERFECT SWEEP · WORLD CUP GAUNTLET"),
+        el({ fontSize: 28, fontWeight: 700, letterSpacing: 6, color: "#7e8aa0" }, subLabel),
       ]),
 
       el({ flexDirection: "column", alignItems: "center", gap: 52 }, [

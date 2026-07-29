@@ -36,6 +36,8 @@ function sanitizeMeta(meta) {
       }))
     : [];
   if (players.length !== 5 || players.some((p) => !p.name)) return null;
+  const day = typeof meta.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(meta.day) ? meta.day : null;
+  const mode = meta.mode === "daily" ? "daily" : "free";
   return {
     v: 1,
     result: RESULTS.has(meta.result) ? meta.result : "run",
@@ -48,6 +50,12 @@ function sanitizeMeta(meta) {
     score: meta.score == null ? null : int(meta.score, 0, 999),
     ovr: int(meta.ovr, 0, 99),
     players,
+    mode,
+    day: mode === "daily" ? day : null,
+    n: mode === "daily" ? int(meta.n, 1, 99999) : null,
+    efficiency: meta.efficiency == null || !Number.isFinite(Number(meta.efficiency))
+      ? null
+      : Math.round(Number(meta.efficiency) * 100) / 100,
   };
 }
 

@@ -1,6 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { COUNTRIES, countryByCode, countryMatchesQuery } from "./countries.js";
 import { validateNick } from "./nickValidate.js";
+import {
+  utcDayKey, isValidDayKey, dailyNumber, formatDayLabel,
+  msUntilUtcMidnight, formatCountdown, rng, shuffleWith,
+  efficiencyFrom, loadDailyState, saveDailyState, clearDailyState,
+  serializeLineup, serializeGames,
+} from "./daily.js";
 
 /* ============ DATA: legendary FIBA World Cup national squads ============ */
 const TEAMS = [
@@ -526,7 +532,7 @@ const ARCHIVE_STATS = {
 function readBrowseFromUrl() {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
-  if (params.has("card") || params.has("r")) return null;
+  if (params.has("card") || params.has("r") || params.has("daily")) return null;
   const teamSlug = params.get("team");
   if (teamSlug) {
     const nation = NATIONS_ARCHIVE.find((n) => n.slug === teamSlug);
@@ -535,11 +541,28 @@ function readBrowseFromUrl() {
   if (params.has("teams")) return { screen: "teams", browseNation: null };
   if (params.has("howto")) return { screen: "howto", browseNation: null };
   if (params.has("about")) return { screen: "about", browseNation: null };
-  if (params.has("leaderboard")) return { screen: "leaderboard", browseNation: null };
+  if (params.has("leaderboard") || params.has("daily-board")) {
+    return { screen: "leaderboard", browseNation: null, dailyBoard: params.has("daily-board") };
+  }
   return null;
 }
 
-const shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
+function readDailyFromUrl() {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("daily")) return null;
+  const raw = params.get("daily");
+  const day = raw && isValidDayKey(raw) ? raw : utcDayKey();
+  return { day };
+}
+
+const shuffle = (a, rand = Math.random) => shuffleWith(a, rand);
+
+function resolveTeamRef(ref) {
+  if (!ref?.name || !ref?.season) return null;
+  if (ref.name === DREAM_TEAM.name && ref.season === DREAM_TEAM.season) return DREAM_TEAM;
+  return TEAMS.find((t) => t.name === ref.name && t.season === ref.season) || null;
+}
 
 /* 2K-style rating gem tiers */
 const tier = (rt) =>
@@ -1949,8 +1972,28 @@ const CountryCombobox = ({ value, onChange }) => {
 export default function PerfectSweep() {
   const shareInit = useMemo(() => readShareFromUrl(), []);
   const shortInit = useMemo(() => (shareInit ? null : readShortIdFromUrl()), [shareInit]);
-  const browseInit = useMemo(() => (shareInit || shortInit ? null : readBrowseFromUrl()), [shareInit, shortInit]);
-  const [screen, setScreen] = useState(shareInit ? "card" : shortInit ? "shareload" : browseInit?.screen ?? "home");
+  const dailyInit = useMemo(() => (shareInit || shortInit ? null : readDailyFromUrl()), [shareInit, shortInit]);
+  const browseInit = useMemo(
+    () => (shareInit || shortInit || dailyInit ? null : readBrowseFromUrl()),
+    [shareInit, shortInit, dailyInit],
+  );
+  const [mode, setMode] = useState(dailyInit ? "daily" : "free");
+  const [dailyDay, setDailyDay] = useState(dailyInit?.day ?? utcDayKey());
+  const [dailyStatus, setDailyStatus] = useState(null); // null | in_progress | done | expired
+  const [dailyCountdown, setDailyCountdown] = useState(() => formatCountdown(msUntilUtcMidnight()));
+  const [dailyBoardTab, setDailyBoardTab] = useState(!!browseInit?.dailyBoard);
+  const [dailyLbEntries, setDailyLbEntries] = useState([]);
+  const [dailyLbCount, setDailyLbCount] = useState(0);
+  const [dailyLbLoading, setDailyLbLoading] = useState(false);
+  const [dailyLbError, setDailyLbError] = useState(null);
+  const [dailySubmitted, setDailySubmitted] = useState(false);
+  const [showDailySubmit, setShowDailySubmit] = useState(false);
+  const [dailyToast, setDailyToast] = useState(null);
+  const dailyBooted = useRef(false);
+
+  const [screen, setScreen] = useState(
+    shareInit ? "card" : shortInit ? "shareload" : dailyInit ? "dailyboot" : browseInit?.screen ?? "home",
+  );
   const [shortId, setShortId] = useState(shortInit);
   const shortRunRef = useRef(null); // { id, payload } — which encoded run the short id belongs to
   const [browseNation, setBrowseNation] = useState(browseInit?.browseNation ?? null);
@@ -2008,6 +2051,7 @@ export default function PerfectSweep() {
 
   const openLeaderboard = () => {
     setBrowseNation(null);
+    setDailyBoardTab(false);
     setScreen("leaderboard");
   };
 
@@ -2028,14 +2072,18 @@ export default function PerfectSweep() {
 
   const switchNation = () => {
     if (!cur || swapsLeft <= 0 || !nationPool.length || pickedThisRoll || fiveSet) return;
-    const t = shuffle(nationPool)[0];
+    if (mode === "daily" && dailyStatus === "done") return;
+    const rand = mode === "daily" ? rng(dailyDay, "swapNation", seenNations.length) : Math.random;
+    const t = shuffle(nationPool, rand)[0];
     setDeck([t]); setSwapsLeft((n) => n - 1); setPickedThisRoll(false);
     setSeenNations((s) => [...s, t.name]);
   };
 
   const switchYear = () => {
     if (!cur || swapsLeft <= 0 || !yearPool.length || pickedThisRoll || fiveSet) return;
-    const t = shuffle(yearPool)[0];
+    if (mode === "daily" && dailyStatus === "done") return;
+    const rand = mode === "daily" ? rng(dailyDay, "swapYear", seenYears.length) : Math.random;
+    const t = shuffle(yearPool, rand)[0];
     setDeck([t]); setSwapsLeft((n) => n - 1); setPickedThisRoll(false);
     setSeenYears((s) => [...s, t.season]);
   };
@@ -2054,8 +2102,11 @@ export default function PerfectSweep() {
 
   const roll = () => {
     if (!canRoll) return;
-    const t = shuffle(TEAMS)[0];
-    setDeck([t]); setRolls((r) => r + 1); setPickedThisRoll(false);
+    if (mode === "daily" && dailyStatus === "done") return;
+    const nextRoll = rolls + 1;
+    const rand = mode === "daily" ? rng(dailyDay, "roll", nextRoll) : Math.random;
+    const t = shuffle(TEAMS, rand)[0];
+    setDeck([t]); setRolls(nextRoll); setPickedThisRoll(false);
     setSeenNations([t.name]); setSeenYears([t.season]);
   };
 
@@ -2065,31 +2116,47 @@ export default function PerfectSweep() {
     setPickedThisRoll(true);
   };
 
-  const neutralGame = (ta, tb) => {
+  const neutralGame = (ta, tb, rand = Math.random) => {
     const d = (teamRating(ta) - teamRating(tb)) * 1.15;
-    const noise = () => (Math.random() - 0.5) * 22;
+    const noise = () => (rand() - 0.5) * 22;
     let sa = Math.round(86 + d / 2 + noise()), sb = Math.round(86 - d / 2 + noise());
     if (sa === sb) sa += 2;
     return { sa: Math.max(58, sa), sb: Math.max(58, sb) };
   };
 
   const startTournament = () => {
+    if (mode === "daily" && dailyStatus === "done") return;
     // real FIBA system: group of 4 → 2nd round group (carry-over + 2 new games) → QF, SF, Final = 8 games
     // knockouts (slots 5-7) draw from above-average teams only, sorted so the Final tends to be the toughest
+    const gRand = mode === "daily" ? rng(dailyDay, "gauntlet") : Math.random;
     const avgRt = TEAMS.reduce((s, t) => s + teamRating(t), 0) / TEAMS.length;
     const elite = TEAMS.filter((t) => teamRating(t) >= avgRt);
-    const knockouts = shuffle(elite).slice(0, 3).sort((a, b) => teamRating(a) - teamRating(b));
-    const rest = shuffle(TEAMS.filter((t) => !knockouts.includes(t))).slice(0, 5);
+    const knockouts = shuffle(elite, gRand).slice(0, 3).sort((a, b) => teamRating(a) - teamRating(b));
+    const rest = shuffle(TEAMS.filter((t) => !knockouts.includes(t)), gRand).slice(0, 5);
     const g8 = [...rest, ...knockouts]; // 0-2 group rivals · 3-4 second-round opponents · 5-7 knockouts
     setGauntlet(g8);
     const rivals = g8.slice(0, 3);
     const pairs = [[0, 1], [0, 2], [1, 2]].map(([a, b]) => {
-      const r = neutralGame(rivals[a], rivals[b]);
+      const nRand = mode === "daily" ? rng(dailyDay, "neutral", "g", a, b) : Math.random;
+      const r = neutralGame(rivals[a], rivals[b], nRand);
       return { a, b, sa: r.sa, sb: r.sb };
     });
     setRivalGames(pairs);
     setGroupOut(false); setR2(null); setR2Out(false);
     setGames([]); setGi(0); setScreen("sim");
+    if (mode === "daily") {
+      setDailyStatus("in_progress");
+      saveDailyState(dailyDay, {
+        status: "in_progress",
+        screen: "sim",
+        rolls, lineup: serializeLineup(lineup), styleId: style.id,
+        swapsLeft, seenNations, seenYears,
+        gauntlet: g8.map((t) => ({ name: t.name, season: t.season })),
+        rivalGames: pairs,
+        games: [], gi: 0, groupOut: false, r2Out: false, r2: null,
+        dreamTeamMode: false, dreamGamePlayed: false,
+      });
+    }
   };
 
   const computeTable = (played) => {
@@ -2119,11 +2186,12 @@ export default function PerfectSweep() {
     const rival = gauntlet[coIdx];
     const carried = { my: played[coIdx].my, op: played[coIdx].op }; // my group game vs that rival
     const A = gauntlet[3], B = gauntlet[4];
+    const n = (lane) => (mode === "daily" ? rng(dailyDay, "neutral", lane) : Math.random);
     setR2({
       rival, coIdx, carried,
-      abCarry: neutralGame(A, B),           // their carried head-to-head
-      rivalVsA: neutralGame(rival, A),      // rival's two new fixtures
-      rivalVsB: neutralGame(rival, B),
+      abCarry: neutralGame(A, B, n("ab")),
+      rivalVsA: neutralGame(rival, A, n("rA")),
+      rivalVsB: neutralGame(rival, B, n("rB")),
     });
   };
 
@@ -2261,25 +2329,205 @@ export default function PerfectSweep() {
     return () => { cancelled = true; };
   }, [shortInit]); // eslint-disable-line
 
+  const hydrateDailyState = (day, saved) => {
+    setMode("daily");
+    setDailyDay(day);
+    setDailySubmitted(!!saved.submitted);
+    if (saved.styleId) {
+      const st = STYLES.find((s) => s.id === saved.styleId);
+      if (st) setStyle(st);
+    }
+    setRolls(saved.rolls ?? 0);
+    setLineup(saved.lineup || {});
+    setSwapsLeft(saved.swapsLeft ?? 2);
+    setSeenNations(saved.seenNations || []);
+    setSeenYears(saved.seenYears || []);
+    setGroupOut(!!saved.groupOut);
+    setR2Out(!!saved.r2Out);
+    setGi(saved.gi ?? 0);
+    setDreamTeamMode(!!saved.dreamTeamMode);
+    setDreamGamePlayed(!!saved.dreamGamePlayed);
+    if (Array.isArray(saved.gauntlet)) {
+      setGauntlet(saved.gauntlet.map(resolveTeamRef).filter(Boolean));
+    }
+    if (Array.isArray(saved.rivalGames)) setRivalGames(saved.rivalGames);
+    if (saved.r2?.rival) {
+      const rival = resolveTeamRef(saved.r2.rival);
+      setR2(rival ? { ...saved.r2, rival } : null);
+    } else setR2(null);
+    if (Array.isArray(saved.games)) {
+      setGames(saved.games.map((g) => ({
+        ...g,
+        opp: resolveTeamRef(g.opp) || g.opp,
+      })).filter((g) => g.opp));
+    }
+    if (saved.shortId) {
+      setShortId(saved.shortId);
+      shortRunRef.current = saved.shortPayload
+        ? { id: saved.shortId, payload: saved.shortPayload }
+        : shortRunRef.current;
+    }
+    setDailyStatus(saved.status);
+    if (saved.status === "done") setScreen(saved.screen === "card" ? "card" : "done");
+    else if (saved.status === "in_progress") setScreen(saved.screen || "sim");
+    else setScreen("draft");
+  };
+
+  // Boot Daily Challenge from ?daily
+  useEffect(() => {
+    if (!dailyInit || dailyBooted.current) return;
+    dailyBooted.current = true;
+    const day = dailyInit.day;
+    const today = utcDayKey();
+    setMode("daily");
+    setDailyDay(day);
+    window.history.replaceState(null, "", `${window.location.pathname}?daily=${day}`);
+
+    if (day !== today) {
+      const saved = loadDailyState(day);
+      if (saved?.status === "done") {
+        hydrateDailyState(day, saved);
+      } else {
+        setDailyStatus("expired");
+        setScreen("home");
+        setDailyToast("That challenge has ended.");
+        setTimeout(() => setDailyToast(null), 2800);
+      }
+      return;
+    }
+
+    const saved = loadDailyState(day);
+    if (saved?.status === "done" || saved?.status === "in_progress") {
+      hydrateDailyState(day, saved);
+      return;
+    }
+    setDailyStatus(null);
+    setScreen("draft");
+    // Auto first roll with seeded RNG
+    const rand = rng(day, "roll", 1);
+    const t = shuffle(TEAMS, rand)[0];
+    setDeck([t]); setRolls(1); setPickedThisRoll(false);
+    setSeenNations([t.name]); setSeenYears([t.season]);
+  }, [dailyInit]); // eslint-disable-line
+
+  // UTC midnight countdown + expire mid-run
+  useEffect(() => {
+    if (mode !== "daily") return undefined;
+    const tick = () => {
+      const today = utcDayKey();
+      setDailyCountdown(formatCountdown(msUntilUtcMidnight()));
+      if (dailyDay !== today && dailyStatus !== "done") {
+        clearDailyState(dailyDay);
+        setDailyStatus("expired");
+        setDailyToast("Daily Challenge expired at midnight UTC.");
+        setTimeout(() => setDailyToast(null), 3200);
+        runId.current++;
+        setLive(null);
+        setScreen("home");
+        setMode("free");
+        setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
+        setGauntlet([]); setRivalGames([]); setR2(null);
+        setGroupOut(false); setR2Out(false);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 15000);
+    return () => clearInterval(id);
+  }, [mode, dailyDay, dailyStatus]);
+
+  // Persist in-progress / done daily state
+  useEffect(() => {
+    if (mode !== "daily" || !dailyDay) return;
+    if (dailyStatus !== "in_progress" && dailyStatus !== "done") return;
+    if (dailyStatus === "in_progress" && screen !== "sim" && screen !== "done" && screen !== "card") return;
+
+    const tg = games.filter((g) => !isDreamGame(g));
+    const dg = games.find(isDreamGame);
+    const w = tg.filter((g) => g.my > g.op).length;
+    const l = tg.length - w;
+    const isPerfect = tg.length === 8 && tg.every((g) => g.my > g.op);
+    const margins = tg.map((g) => g.my - g.op);
+    const dreamMargin = dg ? dg.my - dg.op : null;
+    const ovr = Math.round(myRt);
+    const eff = efficiencyFrom(margins, ovr, isPerfect && dreamMargin != null && dreamMargin > 0 ? dreamMargin : null);
+
+    const payload = {
+      status: dailyStatus === "done" || screen === "done" || screen === "card" ? (dailyStatus === "in_progress" && screen === "sim" ? "in_progress" : dailyStatus) : dailyStatus,
+      screen,
+      rolls, lineup: serializeLineup(lineup), styleId: style.id,
+      swapsLeft, seenNations, seenYears,
+      gauntlet: gauntlet.map((t) => ({ name: t.name, season: t.season })),
+      rivalGames,
+      r2: r2 ? { ...r2, rival: r2.rival ? { name: r2.rival.name, season: r2.rival.season } : null } : null,
+      games: serializeGames(games),
+      gi, groupOut, r2Out, dreamTeamMode, dreamGamePlayed,
+      shortId: shortId || null,
+      shortPayload: shortRunRef.current?.payload || null,
+      submitted: dailySubmitted,
+      result: {
+        w, l, perfect: isPerfect, ovr, margins, efficiency: eff,
+        dreamMargin,
+      },
+    };
+
+    // Promote to done when the run ends
+    if ((screen === "done" || screen === "card") && games.length) {
+      const eliminatedNow = groupOut || r2Out || (tg.length > 5 && tg[tg.length - 1] && tg[tg.length - 1].my < tg[tg.length - 1].op);
+      const finished = eliminatedNow || (tg.length === 8 && (!isPerfect || dreamGamePlayed));
+      // Keep in_progress while waiting for optional Dream Team after a sweep
+      if (finished || (eliminatedNow) || (tg.length === 8 && !isPerfect) || (isPerfect && dreamGamePlayed)) {
+        payload.status = "done";
+        if (dailyStatus !== "done") setDailyStatus("done");
+      }
+    }
+    saveDailyState(dailyDay, payload);
+  }, [mode, dailyDay, dailyStatus, screen, rolls, lineup, style, swapsLeft, seenNations, seenYears, gauntlet, rivalGames, r2, games, gi, groupOut, r2Out, dreamTeamMode, dreamGamePlayed, shortId, dailySubmitted, myRt]);
+
   /* Display-only summary sent alongside the payload — powers the /r/:id OG preview. */
-  const buildShareMeta = () => ({
-    v: 1,
-    result: perfect ? "sweep" : worldChampions ? "champs" : groupOut ? "group" : r2Out ? "r2" : eliminated ? "elim" : "run",
-    w: wins,
-    l: losses,
-    margins: tournamentGames.map((g) => g.my - g.op),
-    dream: dreamGame ? dreamGame.my - dreamGame.op : null,
-    score: runStats?.marginScore ?? null,
-    ovr: runStats?.ovr ?? Math.round(myRt),
-    players: SLOTS.map((s) => lineup[s]).filter(Boolean).map((p) => ({
-      pos: p.pos, name: p.name, rt: p.rt, t: `${p.team} '${String(p.season).slice(2)}`,
-    })),
-  });
+  const buildShareMeta = () => {
+    const margins = tournamentGames.map((g) => g.my - g.op);
+    const ovr = runStats?.ovr ?? Math.round(myRt);
+    const dreamMargin = dreamGame ? dreamGame.my - dreamGame.op : null;
+    const base = {
+      v: 1,
+      result: perfect ? "sweep" : worldChampions ? "champs" : groupOut ? "group" : r2Out ? "r2" : eliminated ? "elim" : "run",
+      w: wins,
+      l: losses,
+      margins,
+      dream: dreamMargin,
+      score: runStats?.marginScore ?? null,
+      ovr,
+      players: SLOTS.map((s) => lineup[s]).filter(Boolean).map((p) => ({
+        pos: p.pos, name: p.name, rt: p.rt, t: `${p.team} '${String(p.season).slice(2)}`,
+      })),
+    };
+    if (mode === "daily") {
+      return {
+        ...base,
+        mode: "daily",
+        day: dailyDay,
+        n: dailyNumber(dailyDay),
+        efficiency: efficiencyFrom(margins, ovr, perfect && dreamMargin != null && dreamMargin > 0 ? dreamMargin : null),
+      };
+    }
+    return { ...base, mode: "free" };
+  };
 
   const buildShareText = (url) => {
     const grid = tournamentGames.map((g) => (g.my > g.op ? "🟩" : "🟥")).join("");
     const star = dreamGame ? (dreamGame.my > dreamGame.op ? "⭐" : "⬛") : "";
     const rec = `${wins}–${losses}`;
+    if (mode === "daily") {
+      const ovr = runStats?.ovr ?? Math.round(myRt);
+      const eff = efficiencyFrom(
+        tournamentGames.map((g) => g.my - g.op),
+        ovr,
+        perfect && dreamGame && dreamGame.my > dreamGame.op ? dreamGame.my - dreamGame.op : null,
+      );
+      const challengeUrl = `${window.location.origin}/?daily`;
+      return `Perfect Sweep Daily #${dailyNumber(dailyDay)}\n${grid}${star}\n${rec} · OVR ${ovr} · EFF ${eff}\n${challengeUrl}`;
+    }
     const headline = perfect
       ? `PERFECT SWEEP ✅ ${rec}${runStats?.marginScore != null ? ` (+${runStats.marginScore})` : ""}`
       : worldChampions ? `WORLD CHAMPIONS 🏆 ${rec}`
@@ -2355,7 +2603,11 @@ export default function PerfectSweep() {
   };
 
   useEffect(() => {
-    if (screen === "shareload") return; // boot from /r/<id> in flight — leave the URL alone
+    if (screen === "shareload" || screen === "dailyboot") return;
+    if (mode === "daily" && dailyDay && (screen === "draft" || screen === "sim" || screen === "done")) {
+      window.history.replaceState(null, "", `${window.location.pathname}?daily=${dailyDay}`);
+      return;
+    }
     if (screen === "card" && games.length && SLOTS.every((s) => lineup[s])) {
       const path = encodeRunShare({ rolls, groupOut, r2Out, lineup, games });
       const short = shortRunRef.current;
@@ -2377,7 +2629,9 @@ export default function PerfectSweep() {
       return;
     }
     if (screen === "leaderboard") {
-      window.history.replaceState(null, "", `${window.location.pathname}?leaderboard`);
+      window.history.replaceState(null, "", dailyBoardTab
+        ? `${window.location.pathname}?daily-board`
+        : `${window.location.pathname}?leaderboard`);
       return;
     }
     if (screen === "team" && browseNation) {
@@ -2385,10 +2639,10 @@ export default function PerfectSweep() {
       return;
     }
     const q = window.location.search;
-    if (q.includes("card=") || /[?&]r=/.test(q) || q.includes("teams") || q.includes("team=") || q.includes("about") || q.includes("howto") || q.includes("leaderboard")) {
+    if (q.includes("card=") || /[?&]r=/.test(q) || q.includes("daily") || q.includes("teams") || q.includes("team=") || q.includes("about") || q.includes("howto") || q.includes("leaderboard") || q.includes("daily-board")) {
       window.history.replaceState(null, "", window.location.pathname);
     }
-  }, [screen, rolls, groupOut, r2Out, lineup, games, browseNation, shortId]);
+  }, [screen, rolls, groupOut, r2Out, lineup, games, browseNation, shortId, mode, dailyDay, dailyBoardTab]);
 
   // After a match ends, bring the continue CTA into view (esp. mobile + standings).
   useEffect(() => {
@@ -2409,13 +2663,54 @@ export default function PerfectSweep() {
 
   const reset = () => {
     runId.current++; setLive(null); setLinkCopied(false); setShortId(null); setStoryBusy(false); shortRunRef.current = null; setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
-    setSwapsLeft(2); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false);
+    setSwapsLeft(2); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false); setGauntlet([]);
     setPickedThisRoll(false); setSeenNations([]); setSeenYears([]); setOpenFlow({});
     setDreamTeamMode(false); setDreamGamePlayed(false);
     setLeaderboardSubmitted(false); setHallSkipped(false); setHallNick(""); setHallCountry("US");
     setHallSubmitting(false); setHallError(null); setHallToast(null);
     setBrowseNation(null);
+    setMode("free"); setDailyStatus(null); setShowDailySubmit(false); setDailySubmitted(false);
+    setDailyDay(utcDayKey());
     window.history.replaceState(null, "", window.location.pathname);
+  };
+
+  const startFreePlay = () => {
+    setMode("free");
+    setDailyStatus(null);
+    setDailySubmitted(false);
+    setShowDailySubmit(false);
+    runId.current++; setLive(null); setShortId(null); shortRunRef.current = null;
+    setLineup({}); setGames([]); setGi(0); setGauntlet([]); setRivalGames([]);
+    setGroupOut(false); setR2(null); setR2Out(false); setSwapsLeft(2);
+    setDreamTeamMode(false); setDreamGamePlayed(false);
+    setPickedThisRoll(false); setOpenFlow({});
+    const t = shuffle(TEAMS)[0];
+    setDeck([t]); setRolls(1);
+    setSeenNations([t.name]); setSeenYears([t.season]);
+    setScreen("draft");
+    window.history.replaceState(null, "", window.location.pathname);
+  };
+
+  const startDailyChallenge = () => {
+    const day = utcDayKey();
+    const saved = loadDailyState(day);
+    setMode("daily");
+    setDailyDay(day);
+    window.history.replaceState(null, "", `${window.location.pathname}?daily=${day}`);
+    if (saved?.status === "done" || saved?.status === "in_progress") {
+      hydrateDailyState(day, saved);
+      return;
+    }
+    runId.current++; setLive(null); setShortId(null); shortRunRef.current = null;
+    setLineup({}); setGames([]); setGi(0); setGauntlet([]); setRivalGames([]);
+    setGroupOut(false); setR2(null); setR2Out(false); setSwapsLeft(2);
+    setDreamTeamMode(false); setDreamGamePlayed(false);
+    setDailyStatus(null); setDailySubmitted(false); setShowDailySubmit(false);
+    const rand = rng(day, "roll", 1);
+    const t = shuffle(TEAMS, rand)[0];
+    setDeck([t]); setRolls(1); setPickedThisRoll(false);
+    setSeenNations([t.name]); setSeenYears([t.season]);
+    setScreen("draft");
   };
 
   const tournamentGames = games.filter((g) => !isDreamGame(g));
@@ -2464,6 +2759,7 @@ export default function PerfectSweep() {
   }, [screen, games, tournamentGames, dreamGame, lineup, wins, losses, perfect, eliminated, worldChampions, groupOut, r2Out, myRt]);
 
   const showHallModal = screen === "done"
+    && mode !== "daily"
     && perfect
     && dreamGamePlayed
     && dreamGame
@@ -2471,6 +2767,57 @@ export default function PerfectSweep() {
     && runStats?.marginScore != null
     && !leaderboardSubmitted
     && !hallSkipped;
+
+  // Offer daily standings submit once the run is locked done
+  useEffect(() => {
+    if (mode !== "daily" || dailyStatus !== "done" || dailySubmitted) return;
+    if (screen !== "done" && screen !== "card") return;
+    setShowDailySubmit(true);
+  }, [mode, dailyStatus, dailySubmitted, screen]);
+
+  const submitDailyEntry = async () => {
+    if (!runStats || mode !== "daily") return;
+    const nickCheck = validateNick(hallNick);
+    if (!nickCheck.ok) {
+      setHallError(nickCheck.error);
+      return;
+    }
+    setHallSubmitting(true);
+    setHallError(null);
+    try {
+      let runIdShare = shortId;
+      try { runIdShare = await ensureShortRun(); } catch { /* optional */ }
+      const margins = tournamentGames.map((g) => g.my - g.op);
+      const dreamMargin = dreamGame && dreamGame.my > dreamGame.op ? dreamGame.my - dreamGame.op : null;
+      const eff = efficiencyFrom(margins, runStats.ovr, perfect ? dreamMargin : null);
+      const res = await fetch("/api/daily", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          day: dailyDay,
+          nick: nickCheck.nick,
+          country: hallCountry,
+          w: wins, l: losses, perfect,
+          ovr: runStats.ovr,
+          efficiency: eff,
+          margins,
+          runId: runIdShare || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not submit.");
+      setDailySubmitted(true);
+      setShowDailySubmit(false);
+      setDailyToast("Posted to today's standings.");
+      setTimeout(() => setDailyToast(null), 2800);
+      const saved = loadDailyState(dailyDay) || {};
+      saveDailyState(dailyDay, { ...saved, submitted: true, status: "done" });
+    } catch (err) {
+      setHallError(err.message || "Could not submit.");
+    } finally {
+      setHallSubmitting(false);
+    }
+  };
 
   const submitHallEntry = async () => {
     if (!runStats || runStats.marginScore == null || runStats.dreamMargin == null) return;
@@ -2510,26 +2857,48 @@ export default function PerfectSweep() {
   useEffect(() => {
     if (screen !== "leaderboard") return;
     let cancelled = false;
-    setLbLoading(true);
-    setLbError(null);
-    fetch("/api/leaderboard")
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Could not load Hall of Fame.");
-        return data;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        setLbEntries(Array.isArray(data.entries) ? data.entries : []);
-      })
-      .catch((err) => {
-        if (!cancelled) setLbError(err.message || "Could not load Hall of Fame.");
-      })
-      .finally(() => {
-        if (!cancelled) setLbLoading(false);
-      });
+    if (dailyBoardTab) {
+      setDailyLbLoading(true);
+      setDailyLbError(null);
+      fetch(`/api/daily?day=${encodeURIComponent(utcDayKey())}`)
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Standings unavailable.");
+          return data;
+        })
+        .then((data) => {
+          if (cancelled) return;
+          setDailyLbEntries(Array.isArray(data.entries) ? data.entries : []);
+          setDailyLbCount(Number(data.count) || 0);
+        })
+        .catch((err) => {
+          if (!cancelled) setDailyLbError(err.message || "Standings unavailable.");
+        })
+        .finally(() => {
+          if (!cancelled) setDailyLbLoading(false);
+        });
+    } else {
+      setLbLoading(true);
+      setLbError(null);
+      fetch("/api/leaderboard")
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Could not load Hall of Fame.");
+          return data;
+        })
+        .then((data) => {
+          if (cancelled) return;
+          setLbEntries(Array.isArray(data.entries) ? data.entries : []);
+        })
+        .catch((err) => {
+          if (!cancelled) setLbError(err.message || "Could not load Hall of Fame.");
+        })
+        .finally(() => {
+          if (!cancelled) setLbLoading(false);
+        });
+    }
     return () => { cancelled = true; };
-  }, [screen]);
+  }, [screen, dailyBoardTab]);
 
 
 
@@ -2537,7 +2906,7 @@ export default function PerfectSweep() {
     <div className="ps-root pb-10">
       <style>{css}</style>
 
-      {hallToast && (
+      {(hallToast || dailyToast) && (
         <div
           className="fixed left-1/2 z-50 pop px-4 py-2 dsp text-sm"
           style={{
@@ -2546,7 +2915,89 @@ export default function PerfectSweep() {
             boxShadow: "0 8px 28px rgba(0,0,0,.45)",
           }}
         >
-          {hallToast}
+          {dailyToast || hallToast}
+        </div>
+      )}
+
+      {mode === "daily" && (screen === "draft" || screen === "sim" || screen === "done") && (
+        <div className="max-w-3xl mx-auto px-4 pt-3">
+          <div className="panel px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="eyebrow" style={{ color: "#E8465A" }}>DAILY CHALLENGE #{dailyNumber(dailyDay)}</div>
+              <div className="dsp text-sm" style={{ color: "#EAF0F7" }}>{formatDayLabel(dailyDay)} · UTC</div>
+            </div>
+            <div className="text-right">
+              <div className="eyebrow" style={{ color: "#7d8ba0" }}>
+                {dailyStatus === "done" ? "PLAYED" : "ENDS IN"}
+              </div>
+              <div className="dsp9 text-lg" style={{ color: dailyStatus === "done" ? "#7ee2a8" : "#f2d27c", fontVariantNumeric: "tabular-nums" }}>
+                {dailyStatus === "done" ? "DONE" : dailyCountdown}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDailySubmit && mode === "daily" && runStats && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center px-4"
+          style={{ background: "rgba(6,8,14,.72)", backdropFilter: "blur(4px)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="daily-title"
+        >
+          <div className="panel p-5 w-full max-w-md pop" style={{ background: "#121826" }}>
+            <div className="eyebrow mb-1" style={{ color: "#E8465A" }}>DAILY #{dailyNumber(dailyDay)}</div>
+            <h2 id="daily-title" className="dsp text-2xl mb-1.5" style={{ color: "#EAF0F7" }}>
+              Post your result
+            </h2>
+            <p className="text-sm mb-4" style={{ color: "#93a1b5" }}>
+              One entry per day. Compare with everyone on today&apos;s board.
+            </p>
+            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+              <div>
+                <div className="dsp9 text-2xl" style={{ color: "#EAF0F7" }}>{wins}–{losses}</div>
+                <div className="eyebrow" style={{ fontSize: 9 }}>RECORD</div>
+              </div>
+              <div>
+                <div className="dsp9 text-2xl" style={{ color: "#E8465A" }}>{runStats.ovr}</div>
+                <div className="eyebrow" style={{ fontSize: 9 }}>OVR</div>
+              </div>
+              <div>
+                <div className="dsp9 text-2xl" style={{ color: "#f2d27c" }}>
+                  {efficiencyFrom(runStats.margins, runStats.ovr, perfect && runStats.dreamMargin > 0 ? runStats.dreamMargin : null)}
+                </div>
+                <div className="eyebrow" style={{ fontSize: 9 }}>EFF</div>
+              </div>
+            </div>
+            <label className="block mb-3">
+              <span className="eyebrow block mb-1.5" style={{ color: "#7d8ba0" }}>NICKNAME</span>
+              <input
+                type="text" value={hallNick} maxLength={16} autoComplete="off"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setHallNick(v);
+                  if (!v.trim()) { setHallError(null); return; }
+                  const check = validateNick(v);
+                  setHallError(check.ok ? null : check.error);
+                }}
+                className="w-full px-3 py-2.5 text-sm" style={fieldChrome} placeholder="2–16 characters"
+              />
+            </label>
+            <label className="block mb-4">
+              <span className="eyebrow block mb-1.5" style={{ color: "#7d8ba0" }}>COUNTRY</span>
+              <CountryCombobox value={hallCountry} onChange={setHallCountry} />
+            </label>
+            {hallError && <p className="text-sm mb-3" style={{ color: "#ff8b98" }}>{hallError}</p>}
+            <div className="flex flex-col gap-2">
+              <button onClick={submitDailyEntry} disabled={hallSubmitting} className="btnP skew dsp9 text-base px-6 py-3 w-full">
+                <span className="unskew">{hallSubmitting ? "POSTING…" : "POST TO STANDINGS"}</span>
+              </button>
+              <button onClick={() => setShowDailySubmit(false)} className="skew chip dsp text-sm px-4 py-2 btnG w-full">
+                <span className="unskew">SKIP</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2672,13 +3123,27 @@ export default function PerfectSweep() {
               </div>
             ))}
           </div>
-          <button className="btnP skew dsp9 text-2xl px-12 py-4 mt-10"
-            onClick={() => { roll(); setScreen("draft"); }}>
-            <span className="unskew">TIP OFF<BtnArrow /></span>
-          </button>
+          <div className="flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 mt-10">
+            <button className="btnP skew dsp9 text-xl sm:text-2xl px-10 py-4" onClick={startFreePlay}>
+              <span className="unskew">TIP OFF<BtnArrow /></span>
+            </button>
+            <button className="skew chip dsp9 text-xl sm:text-2xl px-10 py-4 btnG"
+              onClick={startDailyChallenge}>
+              <span className="unskew">DAILY #{dailyNumber(utcDayKey())}<BtnArrow /></span>
+            </button>
+          </div>
+          <div className="mt-3 text-sm" style={{ color: "#7d8ba0" }}>
+            Same rolls for everyone · one attempt · ends in {formatCountdown(msUntilUtcMidnight())} UTC
+          </div>
           <div className="mt-8 eyebrow">
             {new Set(TEAMS.map(t => t.name)).size} NATIONS · {TEAMS.length} SQUADS · {TEAMS.length * 6} PLAYERS
           </div>
+        </div>
+      )}
+
+      {screen === "dailyboot" && (
+        <div className="max-w-3xl mx-auto px-4 py-24 text-center pop">
+          <div className="eyebrow" style={{ fontSize: 12 }}>LOADING DAILY CHALLENGE…</div>
         </div>
       )}
 
@@ -3152,6 +3617,30 @@ export default function PerfectSweep() {
                 runStats={runStats}
               />
 
+              {mode === "daily" && (
+                <div className="panel mt-4 p-4 text-center">
+                  <div className="eyebrow mb-2" style={{ color: "#E8465A" }}>YOUR RESULT TODAY</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <div className="dsp9 text-2xl" style={{ color: perfect ? "#6fe3a1" : "#EAF0F7" }}>
+                        {perfect ? "SWEEP" : eliminated ? "OUT" : "CUP"}
+                      </div>
+                      <div className="eyebrow" style={{ fontSize: 9 }}>RESULT</div>
+                    </div>
+                    <div>
+                      <div className="dsp9 text-2xl" style={{ color: "#E8465A" }}>{runStats.ovr}</div>
+                      <div className="eyebrow" style={{ fontSize: 9 }}>TEAM OVR</div>
+                    </div>
+                    <div>
+                      <div className="dsp9 text-2xl" style={{ color: "#f2d27c" }}>
+                        {efficiencyFrom(runStats.margins, runStats.ovr, perfect && runStats.dreamMargin > 0 ? runStats.dreamMargin : null)}
+                      </div>
+                      <div className="eyebrow" style={{ fontSize: 9 }}>EFFICIENCY</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <p className="text-center mt-4 text-sm px-2" style={{ color: "#93a1b5" }}>
                 {perfect
                   ? dreamGamePlayed && dreamGame
@@ -3175,10 +3664,28 @@ export default function PerfectSweep() {
                   </button>
                 )}
                 <button onClick={() => setScreen("card")} className={`skew dsp9 text-lg px-8 py-3.5 w-full ${perfect && !dreamGamePlayed ? "chip btnG" : "btnP"}`}>
-                  <span className="unskew whitespace-nowrap">🏆{"\u00A0"}TOURNAMENT CARD{perfect && !dreamGamePlayed ? "" : <BtnArrow />}</span>
+                  <span className="unskew whitespace-nowrap">
+                    {mode === "daily" ? "🔗 SHARE RESULT" : "🏆 TOURNAMENT CARD"}
+                    {perfect && !dreamGamePlayed ? "" : <BtnArrow />}
+                  </span>
                 </button>
+                {mode === "daily" && (
+                  <button
+                    onClick={() => { setDailyBoardTab(true); setScreen("leaderboard"); }}
+                    className="skew chip dsp9 text-base px-6 py-2.5 btnG w-full"
+                  >
+                    <span className="unskew">TODAY&apos;S STANDINGS</span>
+                  </button>
+                )}
+                {!dailySubmitted && mode === "daily" && dailyStatus === "done" && (
+                  <button onClick={() => setShowDailySubmit(true)} className="skew chip dsp9 text-base px-6 py-2.5 btnG w-full">
+                    <span className="unskew">POST TO STANDINGS</span>
+                  </button>
+                )}
                 <button onClick={reset} className="skew chip dsp9 text-base px-6 py-2.5 btnG w-full sm:w-auto sm:self-start">
-                  <span className="unskew whitespace-nowrap">⟳{"\u00A0"}RUN IT BACK</span>
+                  <span className="unskew whitespace-nowrap">
+                    {mode === "daily" ? "↩ FREE PLAY" : "⟳ RUN IT BACK"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -3572,72 +4079,126 @@ export default function PerfectSweep() {
             <button onClick={reset} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
               <span className="unskew">← HOME</span>
             </button>
-            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>PERFECT SWEEP · HALL OF FAME</div>
-          </div>
-
-          <div className="mb-5 text-center">
-            <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>HALL OF FAME</h1>
-            <p className="mt-3 text-sm max-w-lg mx-auto" style={{ color: "#93a1b5" }}>
-              Reserved for Perfect Sweep + Dream Team conquerors. Score = sum of margins.
-            </p>
-          </div>
-
-          {lbLoading && (
-            <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>Loading…</div>
-          )}
-          {!lbLoading && lbError && (
-            <div className="panel p-6 text-center text-sm" style={{ color: "#ff8b98" }}>{lbError}</div>
-          )}
-          {!lbLoading && !lbError && lbEntries.length === 0 && (
-            <div className="panel p-8 text-center">
-              <div className="dsp9 text-2xl" style={{ color: "#EAF0F7" }}>THE THRONE IS EMPTY</div>
-              <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: "#93a1b5" }}>
-                Nobody's gone 8–0 and taken down the Dream Team yet. Be the first name on the board.
-              </p>
+            <div className="eyebrow flex-1 text-center" style={{ color: "#E8465A" }}>
+              {dailyBoardTab ? `DAILY #${dailyNumber(utcDayKey())}` : "HALL OF FAME"}
             </div>
-          )}
-          {!lbLoading && !lbError && lbEntries.length > 0 && (
-            <div className="panel overflow-hidden">
-              <div
-                className="grid gap-2 px-4 py-2 eyebrow"
-                style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", color: "#7d8ba0", borderBottom: "1px solid #232b3d" }}
-              >
-                <span>#</span>
-                <span>NICK</span>
-                <span>COUNTRY</span>
-                <span className="text-right">OVR</span>
-                <span className="text-right">SCORE</span>
+          </div>
+
+          <div className="flex justify-center gap-2 mb-5">
+            <button
+              onClick={() => setDailyBoardTab(false)}
+              className={`skew chip dsp px-4 py-2 text-sm ${!dailyBoardTab ? "btnP" : "btnG"}`}
+            >
+              <span className="unskew">HALL OF FAME</span>
+            </button>
+            <button
+              onClick={() => setDailyBoardTab(true)}
+              className={`skew chip dsp px-4 py-2 text-sm ${dailyBoardTab ? "btnP" : "btnG"}`}
+            >
+              <span className="unskew">DAILY</span>
+            </button>
+          </div>
+
+          {!dailyBoardTab && (
+            <>
+              <div className="mb-5 text-center">
+                <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>HALL OF FAME</h1>
+                <p className="mt-3 text-sm max-w-lg mx-auto" style={{ color: "#93a1b5" }}>
+                  Reserved for Perfect Sweep + Dream Team conquerors. Score = sum of margins.
+                </p>
               </div>
-              {lbEntries.map((e) => {
-                const c = countryByCode(e.country);
-                return (
-                  <div
-                    key={`${e.rank}-${e.nick}-${e.score}`}
-                    className="grid gap-2 px-4 py-3 items-center text-sm"
-                    style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", borderBottom: "1px solid #1a2233" }}
-                  >
-                    <span className="dsp9" style={{ color: e.rank <= 3 ? "#E8465A" : "#7d8ba0" }}>{e.rank}</span>
-                    <span className="dsp truncate" style={{ color: "#EAF0F7" }}>{e.nick}</span>
-                    <span style={{ color: "#c6d2e3" }}>
-                      <span className="mr-1.5" aria-hidden>{c?.flag || "🌍"}</span>
-                      {c?.name || e.country}
-                    </span>
-                    <span className="dsp9 text-right" style={{ color: e.ovr != null ? "#c6d2e3" : "#5f6b7d" }}>
-                      {e.ovr != null ? e.ovr : "—"}
-                    </span>
-                    <span className="dsp9 text-right" style={{ color: "#7ee2a8" }}>{e.score}</span>
+              {lbLoading && <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>Loading…</div>}
+              {!lbLoading && lbError && <div className="panel p-6 text-center text-sm" style={{ color: "#ff8b98" }}>{lbError}</div>}
+              {!lbLoading && !lbError && lbEntries.length === 0 && (
+                <div className="panel p-8 text-center">
+                  <div className="dsp9 text-2xl" style={{ color: "#EAF0F7" }}>THE THRONE IS EMPTY</div>
+                  <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: "#93a1b5" }}>
+                    Nobody&apos;s gone 8–0 and taken down the Dream Team yet. Be the first name on the board.
+                  </p>
+                </div>
+              )}
+              {!lbLoading && !lbError && lbEntries.length > 0 && (
+                <div className="panel overflow-hidden">
+                  <div className="grid gap-2 px-4 py-2 eyebrow" style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", color: "#7d8ba0", borderBottom: "1px solid #232b3d" }}>
+                    <span>#</span><span>NICK</span><span>COUNTRY</span>
+                    <span className="text-right">OVR</span><span className="text-right">SCORE</span>
                   </div>
-                );
-              })}
-            </div>
+                  {lbEntries.map((e) => {
+                    const c = countryByCode(e.country);
+                    return (
+                      <div key={`${e.rank}-${e.nick}-${e.score}`} className="grid gap-2 px-4 py-3 items-center text-sm" style={{ gridTemplateColumns: "2.5rem 1fr 1fr 3rem 4rem", borderBottom: "1px solid #1a2233" }}>
+                        <span className="dsp9" style={{ color: e.rank <= 3 ? "#E8465A" : "#7d8ba0" }}>{e.rank}</span>
+                        <span className="dsp truncate" style={{ color: "#EAF0F7" }}>{e.nick}</span>
+                        <span style={{ color: "#c6d2e3" }}><span className="mr-1.5" aria-hidden>{c?.flag || "🌍"}</span>{c?.name || e.country}</span>
+                        <span className="dsp9 text-right" style={{ color: e.ovr != null ? "#c6d2e3" : "#5f6b7d" }}>{e.ovr != null ? e.ovr : "—"}</span>
+                        <span className="dsp9 text-right" style={{ color: "#7ee2a8" }}>{e.score}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <button className="btnP skew dsp9 text-xl px-10 py-3.5 mt-6 w-full sm:w-auto" onClick={() => { reset(); roll(); setScreen("draft"); }}>
+                <span className="unskew">TIP OFF — TRY TO JOIN THE HALL OF FAME<BtnArrow /></span>
+              </button>
+            </>
           )}
 
-          <button
-            className="btnP skew dsp9 text-xl px-10 py-3.5 mt-6 w-full sm:w-auto"
-            onClick={() => { reset(); roll(); setScreen("draft"); }}
-          >
-            <span className="unskew">TIP OFF — TRY TO JOIN THE HALL OF FAME<BtnArrow /></span>
-          </button>
+          {dailyBoardTab && (
+            <>
+              <div className="mb-5 text-center">
+                <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>DAILY #{dailyNumber(utcDayKey())}</h1>
+                <p className="mt-3 text-sm max-w-lg mx-auto" style={{ color: "#93a1b5" }}>
+                  {formatDayLabel(utcDayKey())} UTC · Ranked by perfect sweep, wins, efficiency, then OVR.
+                  {dailyLbCount ? ` · ${dailyLbCount} played` : ""}
+                </p>
+              </div>
+              {dailyLbLoading && <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>Loading…</div>}
+              {!dailyLbLoading && dailyLbError && (
+                <div className="panel p-6 text-center text-sm" style={{ color: "#ff8b98" }}>
+                  {dailyLbError}
+                  <div className="mt-2" style={{ color: "#93a1b5" }}>Your local result still counts — standings are optional.</div>
+                </div>
+              )}
+              {!dailyLbLoading && !dailyLbError && dailyLbEntries.length === 0 && (
+                <div className="panel p-8 text-center">
+                  <div className="dsp9 text-2xl" style={{ color: "#EAF0F7" }}>NO ENTRIES YET</div>
+                  <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: "#93a1b5" }}>
+                    Be the first to post today&apos;s challenge.
+                  </p>
+                </div>
+              )}
+              {!dailyLbLoading && !dailyLbError && dailyLbEntries.length > 0 && (
+                <div className="panel overflow-hidden">
+                  <div className="grid gap-2 px-4 py-2 eyebrow" style={{ gridTemplateColumns: "2.5rem 1fr 3.5rem 3rem 3.5rem", color: "#7d8ba0", borderBottom: "1px solid #232b3d" }}>
+                    <span>#</span><span>NICK</span>
+                    <span className="text-right">REC</span>
+                    <span className="text-right">OVR</span>
+                    <span className="text-right">EFF</span>
+                  </div>
+                  {dailyLbEntries.map((e) => {
+                    const c = countryByCode(e.country);
+                    return (
+                      <div key={e.id || `${e.rank}-${e.nick}`} className="grid gap-2 px-4 py-3 items-center text-sm" style={{ gridTemplateColumns: "2.5rem 1fr 3.5rem 3rem 3.5rem", borderBottom: "1px solid #1a2233" }}>
+                        <span className="dsp9" style={{ color: e.rank <= 3 ? "#E8465A" : "#7d8ba0" }}>{e.rank}</span>
+                        <span className="min-w-0">
+                          <span className="dsp truncate block" style={{ color: "#EAF0F7" }}>
+                            {e.perfect ? "⭐ " : ""}{e.nick}
+                          </span>
+                          <span className="text-[11px]" style={{ color: "#5f6b7d" }}>{c?.flag || ""} {c?.name || e.country}</span>
+                        </span>
+                        <span className="dsp9 text-right" style={{ color: "#c6d2e3" }}>{e.w}–{e.l}</span>
+                        <span className="dsp9 text-right" style={{ color: "#c6d2e3" }}>{e.ovr}</span>
+                        <span className="dsp9 text-right" style={{ color: "#f2d27c" }}>{e.efficiency}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <button className="btnP skew dsp9 text-xl px-10 py-3.5 mt-6 w-full sm:w-auto" onClick={startDailyChallenge}>
+                <span className="unskew">PLAY TODAY&apos;S DAILY<BtnArrow /></span>
+              </button>
+            </>
+          )}
         </div>
       )}
 
