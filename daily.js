@@ -71,8 +71,37 @@ export function mulberry32(seed) {
  * e.g. rng("2026-07-28", "roll", 3) always yields the same sequence for roll #3.
  */
 export function rng(day, lane, ...parts) {
-  const key = ["perfectsweep-daily", day, lane, ...parts].join("|");
+  return rngFrom("perfectsweep-daily", day, lane, ...parts);
+}
+
+/** Generic prefixed stream — room mode uses "perfectsweep-room". */
+export function rngFrom(prefix, ...parts) {
+  const key = [prefix, ...parts].join("|");
   return mulberry32(hashSeed(key));
+}
+
+/** Stable seed string stored on the room object: `${roomId}|${round}`. */
+export function roomSeed(roomId, round = 1) {
+  return `${roomId}|${round}`;
+}
+
+export function roomRng(seed, lane, ...parts) {
+  return rngFrom("perfectsweep-room", seed, lane, ...parts);
+}
+
+/** Alphabet for room codes — no 0/O/1/I. */
+export const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+export function generateRoomCode(rand = Math.random) {
+  let out = "";
+  for (let i = 0; i < 6; i++) {
+    out += ROOM_CODE_ALPHABET[Math.floor(rand() * ROOM_CODE_ALPHABET.length)];
+  }
+  return out;
+}
+
+export function isValidRoomId(id) {
+  return typeof id === "string" && /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(id);
 }
 
 /** Fisher-Yates with injectable rand (default Math.random). */
@@ -120,6 +149,97 @@ export function clearDailyState(day) {
   try {
     localStorage.removeItem(dailyLsKey(day));
   } catch { /* ignore */ }
+}
+
+/* ─── Daily streak (client-only, UTC calendar) ─── */
+
+export const STREAK_LS_KEY = "ps:dailyStreak";
+export const STREAK_MILESTONES = [3, 7, 14, 30];
+
+const EMPTY_STREAK = Object.freeze({
+  currentStreak: 0,
+  longestStreak: 0,
+  lastPlayedDate: null,
+  lastResult: null,
+});
+
+/** Previous UTC calendar day for a YYYY-MM-DD key. */
+export function prevUtcDayKey(day) {
+  if (!isValidDayKey(day)) return null;
+  const [y, m, d] = day.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d - 1));
+  return utcDayKey(dt);
+}
+
+export function loadDailyStreak() {
+  if (typeof localStorage === "undefined") return { ...EMPTY_STREAK };
+  try {
+    const raw = localStorage.getItem(STREAK_LS_KEY);
+    if (!raw) return { ...EMPTY_STREAK };
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== "object") return { ...EMPTY_STREAK };
+    const currentStreak = Math.max(0, Math.floor(Number(data.currentStreak) || 0));
+    const longestStreak = Math.max(0, Math.floor(Number(data.longestStreak) || 0));
+    const lastPlayedDate = isValidDayKey(data.lastPlayedDate) ? data.lastPlayedDate : null;
+    const lastResult = typeof data.lastResult === "string" ? data.lastResult : null;
+    return { currentStreak, longestStreak, lastPlayedDate, lastResult };
+  } catch {
+    return { ...EMPTY_STREAK };
+  }
+}
+
+export function saveDailyStreak(data) {
+  if (typeof localStorage === "undefined" || !data) return;
+  try {
+    localStorage.setItem(STREAK_LS_KEY, JSON.stringify(data));
+  } catch { /* quota / private mode */ }
+}
+
+/**
+ * Record a finished Daily Challenge for `day` (UTC).
+ * Participation-based: any completed run counts. Idempotent same-day.
+ * @returns {{ currentStreak, longestStreak, lastPlayedDate, lastResult, updated: boolean, milestone: number|null }}
+ */
+export function recordDailyStreak(day, result = null) {
+  const today = isValidDayKey(day) ? day : utcDayKey();
+  const prev = loadDailyStreak();
+  if (prev.lastPlayedDate === today) {
+    return { ...prev, updated: false, milestone: streakMilestone(prev.currentStreak) };
+  }
+
+  const yesterday = prevUtcDayKey(today);
+  let currentStreak = 1;
+  if (prev.lastPlayedDate && prev.lastPlayedDate === yesterday) {
+    currentStreak = prev.currentStreak + 1;
+  }
+
+  const longestStreak = Math.max(prev.longestStreak, currentStreak);
+  const next = {
+    currentStreak,
+    longestStreak,
+    lastPlayedDate: today,
+    lastResult: typeof result === "string" ? result : null,
+  };
+  saveDailyStreak(next);
+  return { ...next, updated: true, milestone: streakMilestone(currentStreak) };
+}
+
+/** True while the streak is still "alive" (played today or yesterday UTC). */
+export function streakIsLive(streak, today = utcDayKey()) {
+  if (!streak?.currentStreak || !streak.lastPlayedDate || !isValidDayKey(today)) return false;
+  return streak.lastPlayedDate === today || streak.lastPlayedDate === prevUtcDayKey(today);
+}
+
+export function streakMilestone(n) {
+  const v = Math.floor(Number(n) || 0);
+  return STREAK_MILESTONES.includes(v) ? v : null;
+}
+
+/** Share fragment when streak > 1, else empty string. */
+export function formatStreakShare(streak) {
+  const n = Math.floor(Number(streak?.currentStreak) || 0);
+  if (n <= 1) return "";
+  return `🔥 ${n}-day streak`;
 }
 
 /** Strip heavy game objects down to what we need to resume / show results. */

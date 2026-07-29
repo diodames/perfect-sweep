@@ -1,5 +1,6 @@
 import { ImageResponse } from "@vercel/og";
 import { kv } from "@vercel/kv";
+import { shareCopy } from "../shareCopy.js";
 
 export const config = { runtime: "edge" };
 
@@ -24,50 +25,107 @@ const tier = (rt) =>
   rt >= 78 ? { bg: "linear-gradient(160deg,#c9f7d4,#4ade80 55%,#16a34a)", fg: "#052e13" } :
              { bg: "linear-gradient(160deg,#fbe8b3,#facc15 55%,#ca8a04)", fg: "#3b2a03" };
 
-const THEME = {
-  sweep:  { headline: "PERFECT SWEEP", color: "#6fe3a1" },
-  champs: { headline: "WORLD CHAMPIONS", color: "#f2d27c" },
-  group:  { headline: "OUT IN THE GROUP STAGE", color: "#ff8b98" },
-  r2:     { headline: "OUT IN THE 2ND ROUND", color: "#ff8b98" },
-  elim:   { headline: "ELIMINATED", color: "#ff8b98" },
-  run:    { headline: "WORLD CUP RUN", color: "#EAF0F7" },
-};
-
 const WIN_TILE  = { background: "#12301f", border: "2px solid #2c5c40", color: "#6fe3a1" };
 const LOSS_TILE = { background: "#331519", border: "2px solid #5c2c34", color: "#ff8b98" };
 const STAR_TILE = { background: "#332a0f", border: "2px solid #5c4d1d", color: "#f2d27c" };
 
-function marginTiles(meta, size, fontSize, gapX = 0, gapY = gapX) {
-  // Pad wrapper around each tile — more reliable in Satori than flex gap/margin.
-  const wrap = (child) => el(
+function compactStage(stage) {
+  if (!stage) return "";
+  if (stage.startsWith("GROUP · G")) return stage.slice(9);
+  if (stage.startsWith("2ND RD · G")) return `2R${stage.slice(10)}`;
+  if (stage === "QUARTERFINAL") return "QF";
+  if (stage === "SEMIFINAL") return "SF";
+  if (stage === "THE FINAL") return "FINAL";
+  if (stage === "DREAM TEAM") return "DREAM";
+  return stage;
+}
+
+function tileWrap(child, w, h, gapX, gapY) {
+  return el(
     {
-      width: size + gapX, height: size + gapY,
+      width: w + gapX, height: h + gapY,
       alignItems: "flex-start", justifyContent: "flex-start",
       paddingRight: gapX, paddingBottom: gapY,
     },
     [child]
   );
-  const tileStyle = {
-    width: size, height: size, borderRadius: Math.round(size * 0.16),
-    alignItems: "center", justifyContent: "center",
-    fontSize, fontWeight: 900,
-  };
-  const tiles = (meta.margins || []).map((m) => {
-    const win = m > 0;
-    return wrap(el({ ...tileStyle, ...(win ? WIN_TILE : LOSS_TILE) }, `${win ? "+" : ""}${m}`));
-  });
+}
+
+function simpleMarginTile(m, size, fontSize, dream = false) {
+  const win = m > 0;
+  const theme = dream ? (win ? STAR_TILE : LOSS_TILE) : (win ? WIN_TILE : LOSS_TILE);
+  return el(
+    {
+      width: size, height: size, borderRadius: Math.round(size * 0.16),
+      alignItems: "center", justifyContent: "center",
+      fontSize, fontWeight: 900, flexDirection: "column",
+      ...theme,
+    },
+    dream
+      ? [
+          starSvg(fontSize * 0.7, win ? "#f2d27c" : "#ff8b98"),
+          el({ fontSize: fontSize * 0.62, lineHeight: 1.1 }, `${win ? "+" : ""}${m}`),
+        ]
+      : `${win ? "+" : ""}${m}`
+  );
+}
+
+function gameTile(g, { width, height, compact, stageFont, scoreFont, marginFont, isDream = false }) {
+  const m = g.m ?? 0;
+  const win = m > 0;
+  const theme = isDream ? (win ? STAR_TILE : LOSS_TILE) : (win ? WIN_TILE : LOSS_TILE);
+  const stage = compact ? compactStage(g.stage) : (g.stage || "");
+  const score = g.my != null && g.op != null ? `${g.my} – ${g.op}` : null;
+  return el(
+    {
+      width, height, borderRadius: Math.round(width * 0.12),
+      flexDirection: "column", alignItems: "center", justifyContent: "center",
+      gap: Math.round(height * 0.06), padding: `${Math.round(height * 0.08)}px 4px`,
+      ...theme,
+    },
+    [
+      ...(isDream ? [starSvg(stageFont * 0.85, win ? "#f2d27c" : "#ff8b98")] : []),
+      el({
+        fontSize: stageFont, fontWeight: 700, letterSpacing: compact ? 0.5 : 1,
+        color: "#7e8aa0", textAlign: "center", lineHeight: 1.1,
+        maxWidth: width - 8, whiteSpace: "nowrap", overflow: "hidden",
+      }, stage),
+      ...(score
+        ? [el({ fontSize: scoreFont, fontWeight: 700, color: "#EAF0F7", lineHeight: 1 }, score)]
+        : []),
+      el({ fontSize: marginFont, fontWeight: 900, color: theme.color, lineHeight: 1 },
+        `${win ? "+" : ""}${m}`),
+    ]
+  );
+}
+
+function marginTiles(meta, opts) {
+  const {
+    cardW, cardH, gapX, gapY, compact,
+    stageFont, scoreFont, marginFont,
+    simpleSize, simpleFont,
+  } = opts;
+
+  if (meta.games?.length) {
+    const tiles = meta.games.map((g) =>
+      tileWrap(gameTile(g, { width: cardW, height: cardH, compact, stageFont, scoreFont, marginFont }), cardW, cardH, gapX, gapY)
+    );
+    if (meta.dreamGame) {
+      tiles.push(tileWrap(
+        gameTile(meta.dreamGame, { width: cardW, height: cardH, compact, stageFont, scoreFont, marginFont, isDream: true }),
+        cardW, cardH, gapX, gapY
+      ));
+    } else if (meta.dream != null) {
+      tiles.push(tileWrap(simpleMarginTile(meta.dream, simpleSize, simpleFont, true), simpleSize, simpleSize, gapX, gapY));
+    }
+    return tiles;
+  }
+
+  const tiles = (meta.margins || []).map((m) =>
+    tileWrap(simpleMarginTile(m, simpleSize, simpleFont), simpleSize, simpleSize, gapX, gapY)
+  );
   if (meta.dream != null) {
-    tiles.push(wrap(el(
-      {
-        ...tileStyle,
-        flexDirection: "column",
-        ...(meta.dream > 0 ? STAR_TILE : LOSS_TILE),
-      },
-      [
-        starSvg(fontSize * 0.7, meta.dream > 0 ? "#f2d27c" : "#ff8b98"),
-        el({ fontSize: fontSize * 0.62, lineHeight: 1.1 }, `${meta.dream > 0 ? "+" : ""}${meta.dream}`),
-      ]
-    )));
+    tiles.push(tileWrap(simpleMarginTile(meta.dream, simpleSize, simpleFont, true), simpleSize, simpleSize, gapX, gapY));
   }
   return tiles;
 }
@@ -113,8 +171,7 @@ function brandChip(record, fontSize, pad) {
   );
 }
 
-function landscape(meta, host) {
-  const t = THEME[meta.result] || THEME.run;
+function landscape(meta, host, copy) {
   const record = `${meta.w}–${meta.l}`;
   const isDaily = meta.mode === "daily";
   const brandLabel = isDaily && meta.n ? `DAILY #${meta.n}` : "PERFECT SWEEP";
@@ -122,7 +179,9 @@ function landscape(meta, host) {
   const scoreLine =
     meta.result === "sweep" && meta.score != null ? `+${meta.score} MARGIN SCORE` :
     meta.result === "sweep" && meta.dream > 0 ? "DREAM TEAM BEATEN" :
-    isDaily && meta.efficiency != null ? `EFF ${meta.efficiency}` : null;
+    isDaily && meta.efficiency != null ? `EFF ${meta.efficiency}` :
+    copy.category === "challenge" ? "CAN YOU TOP IT?" :
+    copy.category === "champs" ? "CAN YOU GO UNDEFEATED?" : null;
 
   // Fixed canvas: space-between distributes leftover height BETWEEN bands
   // so air sits between groups, not in a dead stack at the bottom.
@@ -145,14 +204,19 @@ function landscape(meta, host) {
       // Result band: headline + score stay related; tiles sit a full step below
       el({ flexDirection: "column", gap: 36 }, [
         el({ flexDirection: "column", gap: 16 }, [
-          el({ fontSize: 68, fontWeight: 900, letterSpacing: 2, color: t.color, lineHeight: 1 },
-            `${t.headline} ${record}`),
+          el({ fontSize: 68, fontWeight: 900, letterSpacing: 2, color: copy.color, lineHeight: 1 },
+            `${copy.imageHeadline} ${record}`),
           ...(scoreLine
             ? [el({ fontSize: 26, fontWeight: 700, letterSpacing: 3, color: "#f2d27c" }, scoreLine)]
             : []),
         ]),
-        // Compensate trailing pad so the row doesn't look right-heavy
-        el({ marginRight: -20 }, marginTiles(meta, 56, 24, 20, 0)),
+        el({
+          flexWrap: "wrap", marginRight: -16,
+        }, marginTiles(meta, {
+          cardW: 88, cardH: 96, gapX: 16, gapY: 12, compact: true,
+          stageFont: 11, scoreFont: 14, marginFont: 18,
+          simpleSize: 56, simpleFont: 24,
+        })),
       ]),
 
       el({ justifyContent: "space-between", width: "100%", paddingTop: 4, paddingBottom: 4 },
@@ -179,8 +243,7 @@ function landscape(meta, host) {
   );
 }
 
-function story(meta, host) {
-  const t = THEME[meta.result] || THEME.run;
+function story(meta, host, copy) {
   const record = `${meta.w}–${meta.l}`;
   const isDaily = meta.mode === "daily";
   const subLabel = isDaily && meta.n
@@ -189,7 +252,9 @@ function story(meta, host) {
   const scoreLine =
     meta.result === "sweep" && meta.score != null ? `+${meta.score} MARGIN SCORE` :
     meta.result === "sweep" && meta.dream > 0 ? "DREAM TEAM BEATEN" :
-    isDaily && meta.efficiency != null ? `EFF ${meta.efficiency}` : null;
+    isDaily && meta.efficiency != null ? `EFF ${meta.efficiency}` :
+    copy.category === "challenge" ? "CAN YOU TOP IT?" :
+    copy.category === "champs" ? "CAN YOU GO UNDEFEATED?" : null;
 
   return el(
     {
@@ -209,19 +274,22 @@ function story(meta, host) {
       el({ flexDirection: "column", alignItems: "center", gap: 52 }, [
         el({ flexDirection: "column", alignItems: "center", gap: 20 }, [
           el({
-            fontSize: 80, fontWeight: 900, letterSpacing: 2, color: t.color,
+            fontSize: 80, fontWeight: 900, letterSpacing: 2, color: copy.color,
             lineHeight: 1, textAlign: "center", maxWidth: 860,
-          }, t.headline),
+          }, copy.imageHeadline),
           ...(scoreLine
             ? [el({ fontSize: 34, fontWeight: 700, letterSpacing: 4, color: "#f2d27c" }, scoreLine)]
             : []),
         ]),
-        // Cap width so exactly 5 tiles fit per row (size+gap)*5
         el({
           flexWrap: "wrap", justifyContent: "center",
-          width: (100 + 22) * 5,
+          width: (118 + 22) * 5,
           marginRight: -22, marginBottom: -22,
-        }, marginTiles(meta, 100, 36, 22)),
+        }, marginTiles(meta, {
+          cardW: 118, cardH: 132, gapX: 22, gapY: 22, compact: false,
+          stageFont: 14, scoreFont: 18, marginFont: 28,
+          simpleSize: 100, simpleFont: 36,
+        })),
       ]),
 
       el({ flexDirection: "column", gap: 52, width: "100%" },
@@ -273,8 +341,9 @@ export default async function handler(req) {
 
   const [bold, black] = await Promise.all([boldFont, blackFont]);
   const meta = run.meta;
+  const copy = shareCopy(meta, id);
 
-  return new ImageResponse(isStory ? story(meta, host) : landscape(meta, host), {
+  return new ImageResponse(isStory ? story(meta, host, copy) : landscape(meta, host, copy), {
     width: isStory ? 1080 : 1200,
     height: isStory ? 1920 : 630,
     fonts: [

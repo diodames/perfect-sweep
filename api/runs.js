@@ -24,6 +24,15 @@ const int = (v, lo, hi) => {
   return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : 0;
 };
 
+function sanitizeGame(g) {
+  return {
+    stage: str(g?.stage, 20),
+    my: int(g?.my, 0, 200),
+    op: int(g?.op, 0, 200),
+    m: int(g?.m, -99, 99),
+  };
+}
+
 /** Display-only summary for the share page / OG image. Never trusted for gameplay. */
 function sanitizeMeta(meta) {
   if (!meta || typeof meta !== "object") return null;
@@ -38,6 +47,12 @@ function sanitizeMeta(meta) {
   if (players.length !== 5 || players.some((p) => !p.name)) return null;
   const day = typeof meta.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(meta.day) ? meta.day : null;
   const mode = meta.mode === "daily" ? "daily" : "free";
+  const games = Array.isArray(meta.games)
+    ? meta.games.slice(0, 8).map(sanitizeGame)
+    : [];
+  const dreamGame = meta.dreamGame && typeof meta.dreamGame === "object"
+    ? sanitizeGame(meta.dreamGame)
+    : null;
   return {
     v: 1,
     result: RESULTS.has(meta.result) ? meta.result : "run",
@@ -46,7 +61,9 @@ function sanitizeMeta(meta) {
     margins: Array.isArray(meta.margins)
       ? meta.margins.slice(0, 8).map((m) => int(m, -99, 99))
       : [],
+    games,
     dream: meta.dream == null ? null : int(meta.dream, -99, 99),
+    dreamGame,
     score: meta.score == null ? null : int(meta.score, 0, 999),
     ovr: int(meta.ovr, 0, 99),
     players,

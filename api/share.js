@@ -1,4 +1,6 @@
 import { kv } from "@vercel/kv";
+import { shareCopy } from "../shareCopy.js";
+import { isBotUserAgent, recordMetric } from "../metrics.js";
 
 const ID_RE = /^[A-Za-z0-9_-]{4,16}$/;
 
@@ -11,37 +13,6 @@ function baseUrl(req) {
   const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost";
   const proto = req.headers["x-forwarded-proto"] || (String(host).startsWith("localhost") ? "http" : "https");
   return `${proto}://${host}`;
-}
-
-function titleFor(meta) {
-  const rec = `${meta.w}–${meta.l}`;
-  const daily = meta.mode === "daily" && meta.n ? `DAILY #${meta.n} · ` : "";
-  switch (meta.result) {
-    case "sweep": {
-      const score = meta.score != null ? ` (+${meta.score})` : "";
-      return meta.dream != null && meta.dream > 0
-        ? `${daily}PERFECT SWEEP ✅ ${rec} — DREAM TEAM BEATEN${score}`
-        : `${daily}PERFECT SWEEP ✅ ${rec}`;
-    }
-    case "champs": return `${daily}WORLD CHAMPIONS 🏆 ${rec}`;
-    case "group": return `${daily}OUT IN THE GROUP STAGE ❌ ${rec}`;
-    case "r2": return `${daily}OUT IN THE 2ND ROUND ❌ ${rec}`;
-    case "elim": return `${daily}ELIMINATED ❌ ${rec}`;
-    default: return `${daily}MY WORLD CUP RUN — ${rec}`;
-  }
-}
-
-function descriptionFor(meta) {
-  if (meta.mode === "daily") {
-    const eff = meta.efficiency != null ? ` · EFF ${meta.efficiency}` : "";
-    const ovr = meta.ovr ? `OVR ${meta.ovr}` : "";
-    return `Daily Challenge #${meta.n || "?"} · ${meta.w}–${meta.l}${ovr ? ` · ${ovr}` : ""}${eff}. Play today's challenge at perfectsweep.app/?daily`;
-  }
-  const five = (meta.players || [])
-    .map((p) => `${p.pos} ${p.name}${p.t ? ` (${p.t})` : ""}`)
-    .join(" · ");
-  const ovr = meta.ovr ? ` — OVR ${meta.ovr}` : "";
-  return `${five}${ovr}. Draft your dream national five and chase the Perfect Sweep: win the World Cup without losing a single game.`;
 }
 
 export default async function handler(req, res) {
@@ -64,8 +35,9 @@ export default async function handler(req, res) {
   }
 
   const meta = run.meta;
-  const title = titleFor(meta);
-  const description = descriptionFor(meta);
+  const copy = shareCopy(meta, id);
+  const title = copy.title;
+  const description = copy.description;
   const appUrl = `${base}/?r=${id}`;
   const pageUrl = `${base}/r/${id}`;
   const imageUrl = `${base}/api/og?id=${id}`;
@@ -102,7 +74,18 @@ export default async function handler(req, res) {
 </body>
 </html>`;
 
+  const ua = req.headers["user-agent"] || "";
+  if (!isBotUserAgent(ua)) {
+    try {
+      await recordMetric("shared_result_viewed");
+    } catch (err) {
+      console.error("share metrics error", err);
+    }
+  }
+
+  // No edge cache — each human hit must reach the function so view counters stay honest.
+  // OG crawlers are filtered above; /api/og image URLs remain separately cacheable.
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
+  res.setHeader("Cache-Control", "private, no-store");
   return res.status(200).send(html);
 }

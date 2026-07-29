@@ -6,7 +6,39 @@ import {
   msUntilUtcMidnight, formatCountdown, rng, shuffleWith,
   efficiencyFrom, loadDailyState, saveDailyState, clearDailyState,
   serializeLineup, serializeGames,
+  roomSeed, roomRng, generateRoomCode, isValidRoomId,
+  loadDailyStreak, recordDailyStreak, streakIsLive, formatStreakShare, streakMilestone,
 } from "./daily.js";
+import {
+  ROOM_POLL_MS, saveRoomSession, loadRoomSession, clearRoomSession,
+  createRoom, fetchRoom, roomAction, roomActionWithRetry,
+} from "./roomClient.js";
+import { shareCopy } from "./shareCopy.js";
+
+/** Fire-and-forget anonymous metric → POST /api/metrics (KV counters). */
+function trackEvent(event, props = {}) {
+  try {
+    fetch("/api/metrics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, ...props }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch { /* ignore */ }
+}
+
+function trackMode(mode) {
+  if (mode === "daily") return "daily";
+  if (mode === "cup" || mode === "cupOnline") return "multiplayer";
+  return "casual";
+}
+
+function trackResult({ perfect, worldChampions, eliminated }) {
+  if (perfect) return "sweep";
+  if (worldChampions) return "champion";
+  if (eliminated) return "eliminated";
+  return "eliminated";
+}
 
 /* ============ DATA: legendary FIBA World Cup national squads ============ */
 const TEAMS = [
@@ -529,10 +561,18 @@ const ARCHIVE_STATS = {
   })(),
 };
 
+function readRoomFromUrl() {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const raw = (params.get("room") || "").toUpperCase();
+  if (!isValidRoomId(raw)) return null;
+  return { roomId: raw };
+}
+
 function readBrowseFromUrl() {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
-  if (params.has("card") || params.has("r") || params.has("daily")) return null;
+  if (params.has("card") || params.has("r") || params.has("daily") || params.has("room")) return null;
   const teamSlug = params.get("team");
   if (teamSlug) {
     const nation = NATIONS_ARCHIVE.find((n) => n.slug === teamSlug);
@@ -578,44 +618,44 @@ const tier = (rt) =>
 /* ============ SIMULATION ============ */
 function teamRating(team) { return team.players.slice(0, 5).reduce((s, p) => s + p.rt, 0) / 5; }
 
-function simGame(myRt, style, opp, roundIdx) {
-  const oppRt = teamRating(opp) - 4 + Math.random() * 4 + roundIdx * 0.8;
+function simGame(myRt, style, opp, roundIdx, rand = Math.random) {
+  const oppRt = teamRating(opp) - 4 + rand() * 4 + roundIdx * 0.8;
   const base = 86 + style.pace;
   const diff = (myRt + style.off - oppRt) * 1.15;
-  const noise = () => (Math.random() - 0.5) * 22;
+  const noise = () => (rand() - 0.5) * 22;
   let my = Math.round(base + diff / 2 + style.off + noise());
   let op = Math.round(base - diff / 2 - style.def + noise());
   my = Math.max(58, my); op = Math.max(58, op);
-  return { my, op, opp, myQ: splitQ(my), opQ: splitQ(op) };
+  return { my, op, opp, myQ: splitQ(my, rand), opQ: splitQ(op, rand) };
 }
 
 /* FIBA overtime: 5 minutes per period until someone leads */
-function simOvertimePeriod(myRt, style, oppRt) {
+function simOvertimePeriod(myRt, style, oppRt, rand = Math.random) {
   const diff = (myRt + style.off - oppRt) * 0.7;
-  const noise = () => (Math.random() - 0.5) * 10;
+  const noise = () => (rand() - 0.5) * 10;
   const myOT = Math.max(0, Math.round(11 + diff / 4 + noise()));
   const opOT = Math.max(0, Math.round(11 - diff / 4 + noise()));
   return { myOT, opOT };
 }
 
-function resolveOvertime(my, op, myRt, style, oppRt) {
+function resolveOvertime(my, op, myRt, style, oppRt, rand = Math.random) {
   const otMy = [];
   const otOp = [];
   let periods = 0;
   while (my === op && periods < 8) {
     periods++;
-    const { myOT, opOT } = simOvertimePeriod(myRt, style, oppRt);
+    const { myOT, opOT } = simOvertimePeriod(myRt, style, oppRt, rand);
     otMy.push(myOT);
     otOp.push(opOT);
     my += myOT;
     op += opOT;
   }
-  if (my === op) my += Math.random() > 0.5 ? 2 : 1; // safety after 8 OTs
+  if (my === op) my += rand() > 0.5 ? 2 : 1; // safety after 8 OTs
   return { my, op, otMy, otOp, otPeriods: periods };
 }
 
-const splitQ = (tot) => {
-  let qs = [0, 0, 0, 0].map(() => 0.2 + Math.random());
+const splitQ = (tot, rand = Math.random) => {
+  let qs = [0, 0, 0, 0].map(() => 0.2 + rand());
   const s = qs.reduce((a, b) => a + b, 0);
   qs = qs.map((q) => Math.round((q / s) * tot));
   qs[3] += tot - qs.reduce((a, b) => a + b, 0);
@@ -842,7 +882,7 @@ const TRAIT_DEFS = {
 };
 
 const SIGNIFICANT_TRAIT_DELTA = 5;
-const rollTrait = (chance) => Math.random() < chance;
+const rollTrait = (chance, rand = Math.random) => rand() < chance;
 const traitChance = (p, def) =>
   typeof p.traitChance === "number" ? p.traitChance : def.chance;
 
@@ -858,7 +898,7 @@ function hasTrait(p, id) {
   return playerTraits(p).includes(id);
 }
 
-function applyLineupTraits(lineup, myQ, opQ, ctx) {
+function applyLineupTraits(lineup, myQ, opQ, ctx, rand = Math.random) {
   const fired = [];
   const add = (player, id, q, delta, note) => {
     if (!delta) return;
@@ -874,97 +914,97 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
     const def = TRAIT_DEFS[id];
     const chance = traitChance(p, def);
 
-    if (id === "fibaLegend" && rollTrait(chance)) {
+    if (id === "fibaLegend" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 0, d: 3 }]);
       add(p, id, 0, 3, "Opened hot in Q1");
     }
-    if (id === "goldMedalDna" && rollTrait(chance)) {
+    if (id === "goldMedalDna" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 0, d: 2 }, { q: 2, d: 1 }]);
       add(p, id, 0, 3, "Steady +3 across the game");
     }
-    if (id === "chaosEnergy" && rollTrait(chance)) {
+    if (id === "chaosEnergy" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 2, d: 6 }]);
       add(p, id, 2, 6, "Midgame chaos in Q3");
     }
-    if (id === "flameThrower" && rollTrait(chance)) {
-      const q = Math.floor(Math.random() * 4);
+    if (id === "flameThrower" && rollTrait(chance, rand)) {
+      const q = Math.floor(rand() * 4);
       qs = patchQ(qs, [{ q, d: 10 }]);
       add(p, id, q, 10, `Erupted in ${QN[q]}`);
     }
-    if (id === "unicorn" && ctx.style.id === "bal" && rollTrait(chance)) {
+    if (id === "unicorn" && ctx.style.id === "bal" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: 3 }, { q: 2, d: 2 }]);
       add(p, id, 1, 5, "Unicorn spacing Q2–Q3");
     }
-    if (id === "pointGame42" && ctx.myRt - ctx.oppRt >= 4 && rollTrait(chance)) {
+    if (id === "pointGame42" && ctx.myRt - ctx.oppRt >= 4 && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 0, d: 2 }, { q: 1, d: 2 }, { q: 2, d: 2 }, { q: 3, d: 1 }]);
       add(p, id, 0, 7, "Full-game dominance vs weaker foe");
     }
-    if (id === "secondHalfBeast" && qs[0] + qs[1] < ops[0] + ops[1] && rollTrait(chance)) {
+    if (id === "secondHalfBeast" && qs[0] + qs[1] < ops[0] + ops[1] && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 2, d: 3 }, { q: 3, d: 3 }]);
       add(p, id, 2, 6, "Second-half rally");
     }
-    if (id === "playoffFade" && ctx.gi >= 5 && rollTrait(chance)) {
+    if (id === "playoffFade" && ctx.gi >= 5 && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: -2 }, { q: 2, d: -2 }, { q: 3, d: -3 }]);
       add(p, id, 2, -7, "Knockout fade Q2–Q4");
     }
-    if (id === "foulTrouble" && rollTrait(chance)) {
+    if (id === "foulTrouble" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -3 }]);
       add(p, id, 1, -6, "Foul trouble Q2–Q3");
     }
-    if (id === "goesMissing" && rollTrait(chance)) {
-      const q = Math.floor(Math.random() * 4);
+    if (id === "goesMissing" && rollTrait(chance, rand)) {
+      const q = Math.floor(rand() * 4);
       const lost = qs[q];
       if (lost > 0) {
         qs = patchQ(qs, [{ q, d: -lost }]);
         add(p, id, q, -lost, `No-show in ${QN[q]}`);
       }
     }
-    if (id === "mrImportant" && rollTrait(chance)) {
+    if (id === "mrImportant" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 2, d: 4 }, { q: 3, d: 3 }]);
       add(p, id, 2, 7, "Mr. Important Q3–Q4");
     }
-    if (id === "greatWall" && rollTrait(chance)) {
+    if (id === "greatWall" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 1, d: 3 }]);
       add(p, id, 0, 6, "Great Wall Q1–Q2");
     }
-    if ((id === "theRussian" || id === "twoWayTerror") && rollTrait(chance)) {
+    if ((id === "theRussian" || id === "twoWayTerror") && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: 3 }]);
       ops = patchQ(ops, [{ q: 0, d: -2 }, { q: 1, d: -2 }]);
       add(p, id, 1, 7, id === "theRussian" ? "The Russian two-way Q1–Q2" : "Two-way terror Q1–Q2");
     }
-    if (id === "connector" && rollTrait(chance)) {
+    if (id === "connector" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 0, d: 1 }, { q: 1, d: 1 }, { q: 2, d: 1 }, { q: 3, d: 1 }]);
       add(p, id, 0, 4, "Connector glue all four");
     }
-    if (id === "risingSun" && rollTrait(chance)) {
+    if (id === "risingSun" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 2, d: 6 }]);
       add(p, id, 2, 6, "Rising Sun Q3");
     }
-    if (id === "theTower" && rollTrait(chance)) {
+    if (id === "theTower" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 2, d: 3 }]);
       add(p, id, 0, 6, "The Tower Q1 + Q3");
     }
-    if (id === "glassKnee" && rollTrait(chance)) {
+    if (id === "glassKnee" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -3 }]);
       add(p, id, 1, -6, "Glass knee Q2–Q3");
     }
-    if (id === "hotHead" && rollTrait(chance)) {
+    if (id === "hotHead" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 2, d: -5 }]);
       add(p, id, 2, -5, "Hot head Q3");
     }
-    if (id === "flopCity" && rollTrait(chance)) {
+    if (id === "flopCity" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -2 }]);
       add(p, id, 1, -5, "Flop city Q2–Q3");
     }
-    if (id === "brickFactory" && rollTrait(chance)) {
+    if (id === "brickFactory" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -6 }, { q: 3, d: -3 }]);
       add(p, id, 2, -12, "Brick factory — hero shots clank");
     }
-    if (id === "isoBlackHole" && rollTrait(chance)) {
+    if (id === "isoBlackHole" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -4 }]);
       add(p, id, 2, -7, "Iso black hole — ball stuck Q2–Q3");
     }
-    if (id === "refMeltdown" && rollTrait(chance)) {
+    if (id === "refMeltdown" && rollTrait(chance, rand)) {
       qs = patchQ(qs, [{ q: 1, d: -4 }, { q: 2, d: -4 }, { q: 3, d: -2 }]);
       ops = patchQ(ops, [{ q: 1, d: 2 }]);
       add(p, id, 1, -12, "Ref meltdown — whole team loses it");
@@ -972,7 +1012,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
     if (id === "elCapitan") {
       const through3 = myQ[0] + myQ[1] + myQ[2];
       const opThrough3 = ops[0] + ops[1] + ops[2];
-      if (Math.abs(through3 - opThrough3) <= 6 && rollTrait(chance)) {
+      if (Math.abs(through3 - opThrough3) <= 6 && rollTrait(chance, rand)) {
         qs = patchQ(qs, [{ q: 3, d: 6 }]);
         add(p, id, 3, 6, "El Capitán Q4");
       }
@@ -985,7 +1025,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
   let op = qSum(ops);
 
   for (const p of players) {
-    if (hasTrait(p, "hackAShaq") && my > op && rollTrait(traitChance(p, TRAIT_DEFS.hackAShaq))) {
+    if (hasTrait(p, "hackAShaq") && my > op && rollTrait(traitChance(p, TRAIT_DEFS.hackAShaq), rand)) {
       qs = patchQ(qs, [{ q: 2, d: -3 }, { q: 3, d: -3 }]);
       add(p, "hackAShaq", 3, -6, "Hack-a-Shaq at the line Q3–Q4");
       my = qSum(qs);
@@ -996,7 +1036,7 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
   op = qSum(ops);
   if (my < op && op - my <= 5) {
     for (const p of players) {
-      if (hasTrait(p, "heroBall") && rollTrait(traitChance(p, TRAIT_DEFS.heroBall))) {
+      if (hasTrait(p, "heroBall") && rollTrait(traitChance(p, TRAIT_DEFS.heroBall), rand)) {
         qs = patchQ(qs, [{ q: 2, d: -5 }]);
         add(p, "heroBall", 2, -5, "Hero-ball Q3 in a tight loss");
         my = qSum(qs);
@@ -1007,11 +1047,11 @@ function applyLineupTraits(lineup, myQ, opQ, ctx) {
   return { myQ: qs, opQ: ops, my, fired };
 }
 
-function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed) {
+function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed, rand = Math.random) {
   const fitStyle = fittedStyle(style, lineup);
-  const base = simGame(myRt, fitStyle, opp, gi);
+  const base = simGame(myRt, fitStyle, opp, gi, rand);
   const ctx = { gi, style: fitStyle, myRt, oppRt: teamRating(opp), gamesPlayed };
-  const { myQ, opQ, my, fired } = applyLineupTraits(lineup, base.myQ, base.opQ, ctx);
+  const { myQ, opQ, my, fired } = applyLineupTraits(lineup, base.myQ, base.opQ, ctx, rand);
   let finalMy = my;
   let finalOp = qSum(opQ);
   const regMy = finalMy;
@@ -1020,7 +1060,7 @@ function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed) {
   let otOp = [];
   let otPeriods = 0;
   if (finalMy === finalOp) {
-    const ot = resolveOvertime(finalMy, finalOp, myRt, fitStyle, ctx.oppRt);
+    const ot = resolveOvertime(finalMy, finalOp, myRt, fitStyle, ctx.oppRt, rand);
     finalMy = ot.my;
     finalOp = ot.op;
     otMy = ot.otMy;
@@ -1030,11 +1070,50 @@ function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed) {
   return { ...base, my: finalMy, op: finalOp, myQ, opQ, regMy, regOp, otMy, otOp, otPeriods, traitFired: fired };
 }
 
-function boxScore(lineup, total) {
-  const w = lineup.map((p) => Math.pow(p.rt - 65, 2) * (0.7 + Math.random() * 0.6));
+function boxScore(lineup, total, rand = Math.random) {
+  const w = lineup.map((p) => Math.pow(p.rt - 65, 2) * (0.7 + rand() * 0.6));
   const s = w.reduce((a, b) => a + b, 0);
   const pts = w.map((x) => Math.round((x / s) * total * 0.86));
   return lineup.map((p, i) => ({ ...p, pts: pts[i] })).sort((a, b) => b.pts - a.pts);
+}
+
+/** Head-to-head Cup Final: two drafted fives, one shared rand stream. */
+function simCupFinal(lineupA, styleA, lineupB, styleB, rand = Math.random) {
+  const luA = SLOTS.map((s) => lineupA[s]).filter(Boolean);
+  const luB = SLOTS.map((s) => lineupB[s]).filter(Boolean);
+  const rtA = luA.reduce((s, p) => s + p.rt, 0) / Math.max(luA.length, 1);
+  const rtB = luB.reduce((s, p) => s + p.rt, 0) / Math.max(luB.length, 1);
+  const fitA = fittedStyle(styleA, lineupA);
+  const fitB = fittedStyle(styleB, lineupB);
+  const oppB = { name: "PLAYER 2", season: "0000", c: "#23b4e2", players: luB };
+  const base = simGame(rtA, fitA, oppB, 7, rand);
+  const ctxA = { gi: 7, style: fitA, myRt: rtA, oppRt: rtB, gamesPlayed: 0 };
+  let { myQ, opQ, fired: firedA } = applyLineupTraits(luA, base.myQ, base.opQ, ctxA, rand);
+  // Apply B's traits from B's perspective (their offense = our opp quarters).
+  const ctxB = { gi: 7, style: fitB, myRt: rtB, oppRt: rtA, gamesPlayed: 0 };
+  const flipped = applyLineupTraits(luB, opQ, myQ, ctxB, rand);
+  myQ = flipped.opQ;
+  opQ = flipped.myQ;
+  let finalMy = qSum(myQ);
+  let finalOp = qSum(opQ);
+  let otMy = [];
+  let otOp = [];
+  let otPeriods = 0;
+  if (finalMy === finalOp) {
+    const ot = resolveOvertime(finalMy, finalOp, rtA, fitA, rtB, rand);
+    finalMy = ot.my;
+    finalOp = ot.op;
+    otMy = ot.otMy;
+    otOp = ot.otOp;
+    otPeriods = ot.otPeriods;
+  }
+  const boxA = boxScore(luA, finalMy, rand);
+  const boxB = boxScore(luB, finalOp, rand);
+  return {
+    my: finalMy, op: finalOp, myQ, opQ, otMy, otOp, otPeriods,
+    boxA, boxB, traitFired: firedA, firedB: flipped.fired,
+    rtA: Math.round(rtA), rtB: Math.round(rtB),
+  };
 }
 
 /* ---- play-by-play generation for animated sims ---- */
@@ -1667,6 +1746,17 @@ function roundGameIndex(i) {
   return null;
 }
 
+/** Full stage label for OG share tiles (distinct from compact UI roundShortLabel). */
+function ogStageLabel(i, round) {
+  if (round === DREAM_TEAM_ROUND) return "DREAM TEAM";
+  const sub = roundGameIndex(i);
+  if (i < 3) return `GROUP · G${sub}`;
+  if (i < 5) return `2ND RD · G${sub}`;
+  if (i === 5) return "QUARTERFINAL";
+  if (i === 6) return "SEMIFINAL";
+  return "THE FINAL";
+}
+
 function gameMarginLabel(g, i) {
   if (isDreamGame(g)) return g.my > g.op ? "BONUS WIN" : "DREAM TEAM WINS";
   if (g.my > g.op) return "✓ WIN";
@@ -1989,10 +2079,31 @@ export default function PerfectSweep() {
   const [dailySubmitted, setDailySubmitted] = useState(false);
   const [showDailySubmit, setShowDailySubmit] = useState(false);
   const [dailyToast, setDailyToast] = useState(null);
+  const [dailyStreak, setDailyStreak] = useState(() => loadDailyStreak());
   const dailyBooted = useRef(false);
 
+  // Cup Final (local pass-and-play + online room)
+  const roomUrlInit = useMemo(() => (shareInit || shortInit || dailyInit ? null : readRoomFromUrl()), []); // eslint-disable-line
+  const [cupSeed, setCupSeed] = useState(null);
+  const [cupCode, setCupCode] = useState(null);
+  const [cupDrafting, setCupDrafting] = useState(0);
+  const [cupPlayers, setCupPlayers] = useState([null, null]);
+  const [cupResult, setCupResult] = useState(null);
+  const [cupRoom, setCupRoom] = useState(null);
+  const [cupSlot, setCupSlot] = useState(null);
+  const [cupBusy, setCupBusy] = useState(false);
+  const [cupError, setCupError] = useState(null);
+  const [cupJoinCode, setCupJoinCode] = useState(roomUrlInit?.roomId || "");
+  const [cupP0Nick, setCupP0Nick] = useState("");
+  const [cupP0Country, setCupP0Country] = useState("US");
+  const [cupP1Nick, setCupP1Nick] = useState("");
+  const [cupP1Country, setCupP1Country] = useState("CZ");
+  const cupSimmedRef = useRef(null);
+
+  const isCupMode = mode === "cup" || mode === "cupOnline";
+
   const [screen, setScreen] = useState(
-    shareInit ? "card" : shortInit ? "shareload" : dailyInit ? "dailyboot" : browseInit?.screen ?? "home",
+    shareInit ? "card" : shortInit ? "shareload" : dailyInit ? "dailyboot" : roomUrlInit ? "cupjoin" : browseInit?.screen ?? "home",
   );
   const [shortId, setShortId] = useState(shortInit);
   const shortRunRef = useRef(null); // { id, payload } — which encoded run the short id belongs to
@@ -2033,6 +2144,8 @@ export default function PerfectSweep() {
   const [lbError, setLbError] = useState(null);
   const runId = useRef(0);
   const ctaAnchorRef = useRef(null);
+  const runCompletedTrackedRef = useRef(false);
+  const shareArrivalTrackedRef = useRef(false);
 
   const openTeams = () => {
     setBrowseNation(null);
@@ -2073,7 +2186,11 @@ export default function PerfectSweep() {
   const switchNation = () => {
     if (!cur || swapsLeft <= 0 || !nationPool.length || pickedThisRoll || fiveSet) return;
     if (mode === "daily" && dailyStatus === "done") return;
-    const rand = mode === "daily" ? rng(dailyDay, "swapNation", seenNations.length) : Math.random;
+    const rand = mode === "daily"
+      ? rng(dailyDay, "swapNation", seenNations.length)
+      : isCupMode && cupSeed
+        ? roomRng(cupSeed, "swapNation", seenNations.length)
+        : Math.random;
     const t = shuffle(nationPool, rand)[0];
     setDeck([t]); setSwapsLeft((n) => n - 1); setPickedThisRoll(false);
     setSeenNations((s) => [...s, t.name]);
@@ -2082,7 +2199,11 @@ export default function PerfectSweep() {
   const switchYear = () => {
     if (!cur || swapsLeft <= 0 || !yearPool.length || pickedThisRoll || fiveSet) return;
     if (mode === "daily" && dailyStatus === "done") return;
-    const rand = mode === "daily" ? rng(dailyDay, "swapYear", seenYears.length) : Math.random;
+    const rand = mode === "daily"
+      ? rng(dailyDay, "swapYear", seenYears.length)
+      : isCupMode && cupSeed
+        ? roomRng(cupSeed, "swapYear", seenYears.length)
+        : Math.random;
     const t = shuffle(yearPool, rand)[0];
     setDeck([t]); setSwapsLeft((n) => n - 1); setPickedThisRoll(false);
     setSeenYears((s) => [...s, t.season]);
@@ -2104,7 +2225,11 @@ export default function PerfectSweep() {
     if (!canRoll) return;
     if (mode === "daily" && dailyStatus === "done") return;
     const nextRoll = rolls + 1;
-    const rand = mode === "daily" ? rng(dailyDay, "roll", nextRoll) : Math.random;
+    const rand = mode === "daily"
+      ? rng(dailyDay, "roll", nextRoll)
+      : isCupMode && cupSeed
+        ? roomRng(cupSeed, "roll", nextRoll)
+        : Math.random;
     const t = shuffle(TEAMS, rand)[0];
     setDeck([t]); setRolls(nextRoll); setPickedThisRoll(false);
     setSeenNations([t.name]); setSeenYears([t.season]);
@@ -2125,6 +2250,7 @@ export default function PerfectSweep() {
   };
 
   const startTournament = () => {
+    if (isCupMode) return;
     if (mode === "daily" && dailyStatus === "done") return;
     // real FIBA system: group of 4 → 2nd round group (carry-over + 2 new games) → QF, SF, Final = 8 games
     // knockouts (slots 5-7) draw from above-average teams only, sorted so the Final tends to be the toughest
@@ -2324,6 +2450,11 @@ export default function PerfectSweep() {
         setGi(decoded.gi); setGroupOut(decoded.groupOut); setR2Out(decoded.r2Out);
         setDreamGamePlayed(decoded.games.some(isDreamGame));
         setScreen("card");
+        if (!shareArrivalTrackedRef.current) {
+          shareArrivalTrackedRef.current = true;
+          trackEvent("shared_result_opened", { runId: shortInit });
+          trackEvent("came_from_share", { runId: shortInit });
+        }
       })
       .catch(fail);
     return () => { cancelled = true; };
@@ -2368,6 +2499,7 @@ export default function PerfectSweep() {
         : shortRunRef.current;
     }
     setDailyStatus(saved.status);
+    setDailyStreak(loadDailyStreak());
     if (saved.status === "done") setScreen(saved.screen === "card" ? "card" : "done");
     else if (saved.status === "in_progress") setScreen(saved.screen || "sim");
     else setScreen("draft");
@@ -2480,6 +2612,17 @@ export default function PerfectSweep() {
         payload.status = "done";
         if (dailyStatus !== "done") setDailyStatus("done");
       }
+      // Streak: today's UTC challenge only (incl. pre–Dream Team), once per day
+      if ((eliminatedNow || tg.length === 8) && dailyDay === utcDayKey()) {
+        const resultKey = isPerfect ? "sweep"
+          : (!eliminatedNow && tg.length === 8) ? "champs"
+          : groupOut ? "group"
+          : r2Out ? "r2"
+          : eliminatedNow ? "elim"
+          : "run";
+        const streak = recordDailyStreak(dailyDay, resultKey);
+        if (streak.updated) setDailyStreak(streak);
+      }
     }
     saveDailyState(dailyDay, payload);
   }, [mode, dailyDay, dailyStatus, screen, rolls, lineup, style, swapsLeft, seenNations, seenYears, gauntlet, rivalGames, r2, games, gi, groupOut, r2Out, dreamTeamMode, dreamGamePlayed, shortId, dailySubmitted, myRt]);
@@ -2495,7 +2638,19 @@ export default function PerfectSweep() {
       w: wins,
       l: losses,
       margins,
+      games: tournamentGames.map((g, i) => ({
+        stage: ogStageLabel(i, g.round),
+        my: g.my,
+        op: g.op,
+        m: g.my - g.op,
+      })),
       dream: dreamMargin,
+      dreamGame: dreamGame ? {
+        stage: "DREAM TEAM",
+        my: dreamGame.my,
+        op: dreamGame.op,
+        m: dreamMargin,
+      } : null,
       score: runStats?.marginScore ?? null,
       ovr,
       players: SLOTS.map((s) => lineup[s]).filter(Boolean).map((p) => ({
@@ -2503,12 +2658,14 @@ export default function PerfectSweep() {
       })),
     };
     if (mode === "daily") {
+      const streakN = dailyStreak?.currentStreak || 0;
       return {
         ...base,
         mode: "daily",
         day: dailyDay,
         n: dailyNumber(dailyDay),
         efficiency: efficiencyFrom(margins, ovr, perfect && dreamMargin != null && dreamMargin > 0 ? dreamMargin : null),
+        ...(streakN > 1 ? { streak: streakN } : {}),
       };
     }
     return { ...base, mode: "free" };
@@ -2517,7 +2674,9 @@ export default function PerfectSweep() {
   const buildShareText = (url) => {
     const grid = tournamentGames.map((g) => (g.my > g.op ? "🟩" : "🟥")).join("");
     const star = dreamGame ? (dreamGame.my > dreamGame.op ? "⭐" : "⬛") : "";
-    const rec = `${wins}–${losses}`;
+    const meta = buildShareMeta();
+    const seed = shortId || `${meta.result}|${meta.w}|${meta.l}|${meta.ovr}`;
+    const copy = shareCopy(meta, seed);
     if (mode === "daily") {
       const ovr = runStats?.ovr ?? Math.round(myRt);
       const eff = efficiencyFrom(
@@ -2526,14 +2685,13 @@ export default function PerfectSweep() {
         perfect && dreamGame && dreamGame.my > dreamGame.op ? dreamGame.my - dreamGame.op : null,
       );
       const challengeUrl = `${window.location.origin}/?daily`;
-      return `Perfect Sweep Daily #${dailyNumber(dailyDay)}\n${grid}${star}\n${rec} · OVR ${ovr} · EFF ${eff}\n${challengeUrl}`;
+      const streakBit = formatStreakShare(dailyStreak);
+      const stats = streakBit
+        ? `${meta.w}–${meta.l} · OVR ${ovr} · EFF ${eff} · ${streakBit}`
+        : `${meta.w}–${meta.l} · OVR ${ovr} · EFF ${eff}`;
+      return `${copy.shareLead}\n${grid}${star}\n${stats}\n${challengeUrl}`;
     }
-    const headline = perfect
-      ? `PERFECT SWEEP ✅ ${rec}${runStats?.marginScore != null ? ` (+${runStats.marginScore})` : ""}`
-      : worldChampions ? `WORLD CHAMPIONS 🏆 ${rec}`
-      : eliminated ? `THE CUP CLAIMED MY FIVE ❌ ${rec}`
-      : `MY WORLD CUP RUN — ${rec}`;
-    return `${headline}\n${grid}${star}\n${url}`;
+    return `${copy.shareLead}\n${grid}${star}\n${url}`;
   };
 
   // POST the run once and reuse the content-hash id for link + story image.
@@ -2555,8 +2713,9 @@ export default function PerfectSweep() {
   const shareLink = async () => {
     const done = () => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); };
     let url;
+    let id = shortId || null;
     try {
-      const id = await ensureShortRun();
+      id = await ensureShortRun();
       url = `${window.location.origin}/r/${id}`;
       window.history.replaceState(null, "", `${window.location.pathname}?r=${id}`);
     } catch (e) {
@@ -2566,7 +2725,12 @@ export default function PerfectSweep() {
       window.history.replaceState(null, "", path);
     }
     const text = buildShareText(url);
-    if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    const tryWebShare = !!(navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
+    trackEvent("share_clicked", {
+      runId: id || undefined,
+      channel: tryWebShare ? "web_share" : "clipboard",
+    });
+    if (tryWebShare) {
       try { await navigator.share({ text }); done(); return; }
       catch (e) { if (e?.name === "AbortError") return; }
     }
@@ -2584,6 +2748,7 @@ export default function PerfectSweep() {
     setStoryBusy(true);
     try {
       const id = await ensureShortRun();
+      trackEvent("share_clicked", { runId: id, channel: "story" });
       window.history.replaceState(null, "", `${window.location.pathname}?r=${id}`);
       const res = await fetch(`/api/og?id=${id}&format=story`);
       if (!res.ok) throw new Error("image failed");
@@ -2638,11 +2803,15 @@ export default function PerfectSweep() {
       window.history.replaceState(null, "", `${window.location.pathname}?team=${nationSlug(browseNation)}`);
       return;
     }
+    if (mode === "cupOnline" && cupCode && (screen === "cuplobby" || screen === "draft" || screen === "cupresult")) {
+      window.history.replaceState(null, "", `${window.location.pathname}?room=${cupCode}`);
+      return;
+    }
     const q = window.location.search;
-    if (q.includes("card=") || /[?&]r=/.test(q) || q.includes("daily") || q.includes("teams") || q.includes("team=") || q.includes("about") || q.includes("howto") || q.includes("leaderboard") || q.includes("daily-board")) {
+    if (q.includes("card=") || /[?&]r=/.test(q) || q.includes("daily") || q.includes("room") || q.includes("teams") || q.includes("team=") || q.includes("about") || q.includes("howto") || q.includes("leaderboard") || q.includes("daily-board")) {
       window.history.replaceState(null, "", window.location.pathname);
     }
-  }, [screen, rolls, groupOut, r2Out, lineup, games, browseNation, shortId, mode, dailyDay, dailyBoardTab]);
+  }, [screen, rolls, groupOut, r2Out, lineup, games, browseNation, shortId, mode, dailyDay, dailyBoardTab, cupCode]);
 
   // After a match ends, bring the continue CTA into view (esp. mobile + standings).
   useEffect(() => {
@@ -2661,6 +2830,37 @@ export default function PerfectSweep() {
     };
   }, [live, screen, games.length, dreamTeamMode, gi]);
 
+  // Cup Final online — poll room ~1.8s
+  useEffect(() => {
+    if (mode !== "cupOnline" || !cupCode) return undefined;
+    if (screen !== "cuplobby" && screen !== "draft") return undefined;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const room = await fetchRoom(cupCode);
+        if (cancelled) return;
+        setCupRoom(room);
+        setCupSeed(room.seed);
+        if (room.phase === "draft" && screen === "cuplobby") {
+          const me = cupSlot != null ? room.players[cupSlot] : null;
+          if (me?.draftDone) {
+            // Waiting for opponent — stay in lobby.
+          } else {
+            beginCupDraftBoard(room.seed);
+            setScreen("draft");
+          }
+        } else if (room.phase === "sim" || room.phase === "done") {
+          maybeSimOnlineRoom(room);
+        }
+      } catch (err) {
+        if (!cancelled) setCupError(err.message || "Room expired.");
+      }
+    };
+    tick();
+    const id = setInterval(tick, ROOM_POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [mode, cupCode, screen]); // eslint-disable-line
+
   const reset = () => {
     runId.current++; setLive(null); setLinkCopied(false); setShortId(null); setStoryBusy(false); shortRunRef.current = null; setScreen("home"); setDeck([]); setLineup({}); setGames([]); setGi(0); setRolls(0);
     setSwapsLeft(2); setRivalGames([]); setGroupOut(false); setR2(null); setR2Out(false); setGauntlet([]);
@@ -2671,6 +2871,11 @@ export default function PerfectSweep() {
     setBrowseNation(null);
     setMode("free"); setDailyStatus(null); setShowDailySubmit(false); setDailySubmitted(false);
     setDailyDay(utcDayKey());
+    setCupSeed(null); setCupCode(null); setCupDrafting(0); setCupPlayers([null, null]);
+    setCupResult(null); setCupRoom(null); setCupSlot(null); setCupBusy(false); setCupError(null);
+    cupSimmedRef.current = null;
+    runCompletedTrackedRef.current = false;
+    clearRoomSession();
     window.history.replaceState(null, "", window.location.pathname);
   };
 
@@ -2713,6 +2918,240 @@ export default function PerfectSweep() {
     setScreen("draft");
   };
 
+  const beginCupDraftBoard = (seed) => {
+    runId.current++;
+    setLive(null);
+    setLineup({});
+    setSwapsLeft(2);
+    setPickedThisRoll(false);
+    setOpenFlow({});
+    const rand = roomRng(seed, "roll", 1);
+    const t = shuffle(TEAMS, rand)[0];
+    setDeck([t]);
+    setRolls(1);
+    setSeenNations([t.name]);
+    setSeenYears([t.season]);
+  };
+
+  const runCupSim = (p0, p1, seed) => {
+    const styleA = STYLES.find((s) => s.id === (p0.styleId || "bal")) || STYLES[1];
+    const styleB = STYLES.find((s) => s.id === (p1.styleId || "bal")) || STYLES[1];
+    const rand = roomRng(seed, "sim");
+    const result = simCupFinal(p0.lineup, styleA, p1.lineup, styleB, rand);
+    setCupResult({
+      ...result,
+      p0: { nick: p0.nick, country: p0.country, styleId: styleA.id, lineup: p0.lineup },
+      p1: { nick: p1.nick, country: p1.country, styleId: styleB.id, lineup: p1.lineup },
+      seed,
+    });
+    setScreen("cupresult");
+  };
+
+  const startLocalCup = () => {
+    const n0 = validateNick(cupP0Nick);
+    const n1 = validateNick(cupP1Nick);
+    if (!n0.ok) { setCupError(n0.error); return; }
+    if (!n1.ok) { setCupError(n1.error); return; }
+    if (n0.nick === n1.nick) { setCupError("Players need different nicknames."); return; }
+    const code = generateRoomCode();
+    const seed = roomSeed(`L${code}`, 1);
+    setCupError(null);
+    setMode("cup");
+    setCupCode(code);
+    setCupSeed(seed);
+    setCupDrafting(0);
+    setCupResult(null);
+    cupSimmedRef.current = null;
+    setCupPlayers([
+      { nick: n0.nick, country: cupP0Country, styleId: style.id, lineup: null },
+      { nick: n1.nick, country: cupP1Country, styleId: style.id, lineup: null },
+    ]);
+    beginCupDraftBoard(seed);
+    setScreen("draft");
+    window.history.replaceState(null, "", window.location.pathname);
+  };
+
+  const continueLocalCupPass = () => {
+    beginCupDraftBoard(cupSeed);
+    setScreen("draft");
+  };
+
+  const maybeSimOnlineRoom = (room) => {
+    if (!room || (room.phase !== "sim" && room.phase !== "done")) return;
+    const a = room.players[0];
+    const b = room.players[1];
+    if (!a?.lineup || !b?.lineup) return;
+    const key = `${room.id}:${room.seed}`;
+    if (cupSimmedRef.current === key) return;
+    cupSimmedRef.current = key;
+    setCupSeed(room.seed);
+    runCupSim(
+      { nick: a.nick, country: a.country, styleId: a.styleId, lineup: a.lineup },
+      { nick: b.nick, country: b.country, styleId: b.styleId, lineup: b.lineup },
+      room.seed,
+    );
+  };
+
+  const lockCupLineup = async () => {
+    if (!fiveSet || cupBusy) return;
+    if (mode === "cup") {
+      const next = [...cupPlayers];
+      next[cupDrafting] = {
+        ...next[cupDrafting],
+        lineup: serializeLineup(lineup),
+        styleId: style.id,
+      };
+      setCupPlayers(next);
+      if (cupDrafting === 0) {
+        setCupDrafting(1);
+        setScreen("cuppass");
+        return;
+      }
+      runCupSim(next[0], next[1], cupSeed);
+      return;
+    }
+    if (mode === "cupOnline" && cupRoom && cupSlot != null) {
+      setCupBusy(true);
+      setCupError(null);
+      try {
+        const me = cupRoom.players[cupSlot];
+        const data = await roomActionWithRetry(cupRoom.id, (fresh) => ({
+          action: "submitDraft",
+          expectedVersion: (fresh || cupRoom).version,
+          nick: me.nick,
+          country: me.country,
+          lineup: serializeLineup(lineup),
+          styleId: style.id,
+        }));
+        setCupRoom(data.room);
+        if (data.room.phase === "sim" || data.room.phase === "done") {
+          maybeSimOnlineRoom(data.room);
+        } else {
+          setScreen("cuplobby");
+        }
+      } catch (err) {
+        setCupError(err.message || "Submit failed.");
+      } finally {
+        setCupBusy(false);
+      }
+    }
+  };
+
+  const createOnlineRoom = async () => {
+    const n0 = validateNick(cupP0Nick);
+    if (!n0.ok) { setCupError(n0.error); return; }
+    setCupBusy(true);
+    setCupError(null);
+    try {
+      const data = await createRoom(n0.nick, cupP0Country);
+      setMode("cupOnline");
+      setCupRoom(data.room);
+      setCupSlot(data.slot);
+      setCupSeed(data.room.seed);
+      setCupCode(data.room.id);
+      setCupResult(null);
+      cupSimmedRef.current = null;
+      saveRoomSession({ roomId: data.room.id, slot: data.slot, nick: n0.nick, country: cupP0Country });
+      setScreen("cuplobby");
+      window.history.replaceState(null, "", `${window.location.pathname}?room=${data.room.id}`);
+    } catch (err) {
+      setCupError(err.message || "Could not create room.");
+    } finally {
+      setCupBusy(false);
+    }
+  };
+
+  const joinOnlineRoom = async () => {
+    const code = String(cupJoinCode || "").toUpperCase().trim();
+    if (!isValidRoomId(code)) { setCupError("Enter a valid 6-character room code."); return; }
+    const n0 = validateNick(cupP0Nick);
+    if (!n0.ok) { setCupError(n0.error); return; }
+    setCupBusy(true);
+    setCupError(null);
+    try {
+      const data = await roomAction(code, {
+        action: "join",
+        nick: n0.nick,
+        country: cupP0Country,
+      });
+      setMode("cupOnline");
+      setCupRoom(data.room);
+      setCupSlot(data.slot);
+      setCupSeed(data.room.seed);
+      setCupCode(data.room.id);
+      setCupResult(null);
+      cupSimmedRef.current = null;
+      saveRoomSession({ roomId: data.room.id, slot: data.slot, nick: n0.nick, country: cupP0Country });
+      setScreen("cuplobby");
+      window.history.replaceState(null, "", `${window.location.pathname}?room=${data.room.id}`);
+    } catch (err) {
+      setCupError(err.message || "Could not join room.");
+    } finally {
+      setCupBusy(false);
+    }
+  };
+
+  const readyOnline = async () => {
+    if (!cupRoom || cupSlot == null) return;
+    setCupBusy(true);
+    setCupError(null);
+    try {
+      const me = cupRoom.players[cupSlot];
+      const data = await roomActionWithRetry(cupRoom.id, (fresh) => ({
+        action: "ready",
+        expectedVersion: (fresh || cupRoom).version,
+        nick: me.nick,
+        country: me.country,
+      }));
+      setCupRoom(data.room);
+      if (data.room.phase === "draft") {
+        setCupSeed(data.room.seed);
+        beginCupDraftBoard(data.room.seed);
+        setScreen("draft");
+      }
+    } catch (err) {
+      setCupError(err.message || "Ready failed.");
+    } finally {
+      setCupBusy(false);
+    }
+  };
+
+  const setOnlineStyle = async (st) => {
+    setStyle(st);
+    if (mode !== "cupOnline" || !cupRoom || cupSlot == null) return;
+    try {
+      const me = cupRoom.players[cupSlot];
+      const data = await roomActionWithRetry(cupRoom.id, (fresh) => ({
+        action: "setStyle",
+        expectedVersion: (fresh || cupRoom).version,
+        nick: me.nick,
+        country: me.country,
+        styleId: st.id,
+      }));
+      setCupRoom(data.room);
+    } catch { /* best-effort */ }
+  };
+
+  const leaveOnlineRoom = async () => {
+    if (cupRoom && cupSlot != null) {
+      try {
+        const me = cupRoom.players[cupSlot];
+        await roomAction(cupRoom.id, {
+          action: "leave",
+          expectedVersion: cupRoom.version,
+          nick: me.nick,
+          country: me.country,
+        });
+      } catch { /* ignore */ }
+    }
+    clearRoomSession();
+    setCupRoom(null);
+    setCupSlot(null);
+    setMode("free");
+    setScreen("home");
+    window.history.replaceState(null, "", window.location.pathname);
+  };
+
   const tournamentGames = games.filter((g) => !isDreamGame(g));
   const dreamGame = games.find(isDreamGame);
   const wins = tournamentGames.filter((g) => g.my > g.op).length;
@@ -2722,6 +3161,23 @@ export default function PerfectSweep() {
   const lastG = tournamentGames[tournamentGames.length - 1];
   const eliminated = groupOut || r2Out || (tournamentGames.length > 5 && lastG && lastG.my < lastG.op);
   const worldChampions = !eliminated && tournamentGames.length === 8 && lastG && lastG.my > lastG.op;
+
+  // Once per tournament / cup finish (not again after Dream Team return-to-done).
+  useEffect(() => {
+    if (runCompletedTrackedRef.current) return;
+    if (screen === "done" && tournamentGames.length) {
+      runCompletedTrackedRef.current = true;
+      trackEvent("run_completed", {
+        mode: trackMode(mode),
+        result: trackResult({ perfect, worldChampions, eliminated }),
+      });
+      return;
+    }
+    if (screen === "cupresult" && cupResult) {
+      runCompletedTrackedRef.current = true;
+      trackEvent("run_completed", { mode: "multiplayer", result: "champion" });
+    }
+  }, [screen, tournamentGames.length, cupResult, mode, perfect, worldChampions, eliminated]);
 
   /* ---- end-of-run stats ---- */
   const runStats = useMemo(() => {
@@ -3135,7 +3591,13 @@ export default function PerfectSweep() {
           <div className="mt-3 text-sm" style={{ color: "#7d8ba0" }}>
             Same rolls for everyone · one attempt · ends in {formatCountdown(msUntilUtcMidnight())} UTC
           </div>
-          <div className="mt-8 eyebrow">
+          {streakIsLive(dailyStreak) && (
+            <div className="mt-2 dsp9 text-sm" style={{ color: "#f2d27c", letterSpacing: ".06em" }}>
+              {dailyStreak.currentStreak} DAY STREAK
+              {dailyStreak.lastPlayedDate === utcDayKey() ? " · PLAYED TODAY" : ""}
+            </div>
+          )}
+          <div className="mt-12 eyebrow">
             {new Set(TEAMS.map(t => t.name)).size} NATIONS · {TEAMS.length} SQUADS · {TEAMS.length * 6} PLAYERS
           </div>
         </div>
@@ -3147,13 +3609,232 @@ export default function PerfectSweep() {
         </div>
       )}
 
+      {/* ============ CUP FINAL MENUS ============ */}
+      {screen === "cupmenu" && (
+        <div className="max-w-lg mx-auto px-6 py-12 text-center pop">
+          <div className="eyebrow mb-2" style={{ color: "#E8465A" }}>HEAD-TO-HEAD</div>
+          <h1 className="dsp text-4xl mb-2" style={{ color: "#EAF0F7" }}>CUP FINAL</h1>
+          <p className="text-sm mb-8" style={{ color: "#93a1b5" }}>
+            Both draft from the same seeded pool. One game decides the champ.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button className="btnP skew dsp9 text-xl px-8 py-3.5" onClick={() => { setCupError(null); setScreen("cuplocal"); }}>
+              <span className="unskew">PASS & PLAY (ONE DEVICE)</span>
+            </button>
+            <button className="skew chip dsp9 text-xl px-8 py-3.5 btnG" onClick={() => { setCupError(null); setScreen("cupcreate"); }}>
+              <span className="unskew">CREATE ONLINE ROOM</span>
+            </button>
+            <button className="skew chip dsp9 text-xl px-8 py-3.5 btnG" onClick={() => { setCupError(null); setScreen("cupjoin"); }}>
+              <span className="unskew">JOIN WITH CODE</span>
+            </button>
+            <button className="skew chip dsp text-sm px-6 py-2.5 btnG mt-2" onClick={() => setScreen("home")}>
+              <span className="unskew">BACK</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {screen === "cuplocal" && (
+        <div className="max-w-md mx-auto px-6 py-10 pop">
+          <div className="eyebrow mb-1" style={{ color: "#E8465A" }}>PASS & PLAY</div>
+          <h2 className="dsp text-3xl mb-6" style={{ color: "#EAF0F7" }}>Two players</h2>
+          {[
+            { label: "PLAYER 1", nick: cupP0Nick, setNick: setCupP0Nick, country: cupP0Country, setCountry: setCupP0Country },
+            { label: "PLAYER 2", nick: cupP1Nick, setNick: setCupP1Nick, country: cupP1Country, setCountry: setCupP1Country },
+          ].map((p) => (
+            <div key={p.label} className="panel p-4 mb-3 text-left">
+              <div className="eyebrow mb-2">{p.label}</div>
+              <label className="block mb-2">
+                <span className="eyebrow block mb-1" style={{ color: "#7d8ba0" }}>NICK</span>
+                <input type="text" value={p.nick} maxLength={16} autoComplete="off"
+                  onChange={(e) => p.setNick(e.target.value)}
+                  className="w-full px-3 py-2 text-sm" style={fieldChrome} placeholder="2–16 characters" />
+              </label>
+              <label className="block">
+                <span className="eyebrow block mb-1" style={{ color: "#7d8ba0" }}>COUNTRY</span>
+                <CountryCombobox value={p.country} onChange={p.setCountry} />
+              </label>
+            </div>
+          ))}
+          {cupError && <p className="text-sm mb-3" style={{ color: "#ff8b98" }}>{cupError}</p>}
+          <button className="btnP skew dsp9 text-lg px-8 py-3 w-full mb-2" onClick={startLocalCup}>
+            <span className="unskew">START DRAFT</span>
+          </button>
+          <button className="skew chip dsp text-sm px-6 py-2 btnG w-full" onClick={() => setScreen("cupmenu")}>
+            <span className="unskew">BACK</span>
+          </button>
+        </div>
+      )}
+
+      {screen === "cupcreate" && (
+        <div className="max-w-md mx-auto px-6 py-10 pop">
+          <div className="eyebrow mb-1" style={{ color: "#E8465A" }}>ONLINE ROOM</div>
+          <h2 className="dsp text-3xl mb-6" style={{ color: "#EAF0F7" }}>Host a Cup Final</h2>
+          <label className="block mb-3 text-left">
+            <span className="eyebrow block mb-1" style={{ color: "#7d8ba0" }}>YOUR NICK</span>
+            <input type="text" value={cupP0Nick} maxLength={16} autoComplete="off"
+              onChange={(e) => setCupP0Nick(e.target.value)}
+              className="w-full px-3 py-2 text-sm" style={fieldChrome} placeholder="2–16 characters" />
+          </label>
+          <label className="block mb-4 text-left">
+            <span className="eyebrow block mb-1" style={{ color: "#7d8ba0" }}>COUNTRY</span>
+            <CountryCombobox value={cupP0Country} onChange={setCupP0Country} />
+          </label>
+          {cupError && <p className="text-sm mb-3" style={{ color: "#ff8b98" }}>{cupError}</p>}
+          <button className="btnP skew dsp9 text-lg px-8 py-3 w-full mb-2" disabled={cupBusy} onClick={createOnlineRoom}>
+            <span className="unskew">{cupBusy ? "CREATING…" : "CREATE ROOM"}</span>
+          </button>
+          <button className="skew chip dsp text-sm px-6 py-2 btnG w-full" onClick={() => setScreen("cupmenu")}>
+            <span className="unskew">BACK</span>
+          </button>
+        </div>
+      )}
+
+      {(screen === "cupjoin") && (
+        <div className="max-w-md mx-auto px-6 py-10 pop">
+          <div className="eyebrow mb-1" style={{ color: "#E8465A" }}>ONLINE ROOM</div>
+          <h2 className="dsp text-3xl mb-6" style={{ color: "#EAF0F7" }}>Join a Cup Final</h2>
+          <label className="block mb-3 text-left">
+            <span className="eyebrow block mb-1" style={{ color: "#7d8ba0" }}>ROOM CODE</span>
+            <input type="text" value={cupJoinCode} maxLength={6} autoComplete="off"
+              onChange={(e) => setCupJoinCode(e.target.value.toUpperCase())}
+              className="w-full px-3 py-2 text-sm dsp9 tracking-widest" style={fieldChrome} placeholder="AB3K7Q" />
+          </label>
+          <label className="block mb-3 text-left">
+            <span className="eyebrow block mb-1" style={{ color: "#7d8ba0" }}>YOUR NICK</span>
+            <input type="text" value={cupP0Nick} maxLength={16} autoComplete="off"
+              onChange={(e) => setCupP0Nick(e.target.value)}
+              className="w-full px-3 py-2 text-sm" style={fieldChrome} placeholder="2–16 characters" />
+          </label>
+          <label className="block mb-4 text-left">
+            <span className="eyebrow block mb-1" style={{ color: "#7d8ba0" }}>COUNTRY</span>
+            <CountryCombobox value={cupP0Country} onChange={setCupP0Country} />
+          </label>
+          {cupError && <p className="text-sm mb-3" style={{ color: "#ff8b98" }}>{cupError}</p>}
+          <button className="btnP skew dsp9 text-lg px-8 py-3 w-full mb-2" disabled={cupBusy} onClick={joinOnlineRoom}>
+            <span className="unskew">{cupBusy ? "JOINING…" : "JOIN ROOM"}</span>
+          </button>
+          <button className="skew chip dsp text-sm px-6 py-2 btnG w-full" onClick={() => setScreen("cupmenu")}>
+            <span className="unskew">BACK</span>
+          </button>
+        </div>
+      )}
+
+      {screen === "cuplobby" && cupRoom && (
+        <div className="max-w-md mx-auto px-6 py-10 pop text-center">
+          <div className="eyebrow mb-1" style={{ color: "#E8465A" }}>ROOM {cupRoom.id}</div>
+          <h2 className="dsp text-3xl mb-2" style={{ color: "#EAF0F7" }}>
+            {cupRoom.phase === "lobby" ? "Lobby" : cupRoom.phase === "draft" ? "Drafting…" : "Waiting…"}
+          </h2>
+          <p className="text-sm mb-6" style={{ color: "#93a1b5" }}>
+            Share code <b style={{ color: "#EAF0F7" }}>{cupRoom.id}</b> · polls every few seconds
+          </p>
+          <div className="panel p-4 mb-4 text-left">
+            {[0, 1].map((i) => {
+              const p = cupRoom.players[i];
+              return (
+                <div key={i} className="flex items-center justify-between py-2"
+                  style={{ borderBottom: i === 0 ? "1px solid #1c2333" : "none" }}>
+                  <div>
+                    <div className="dsp text-lg" style={{ color: p ? "#EAF0F7" : "#5f6b7d" }}>
+                      {p ? p.nick : "Waiting for player…"}
+                    </div>
+                    <div className="eyebrow" style={{ fontSize: 9 }}>
+                      {p ? `${countryByCode(p.country)?.name || p.country} · ${p.ready ? "READY" : "NOT READY"}${p.draftDone ? " · DRAFT LOCKED" : ""}` : "SLOT OPEN"}
+                    </div>
+                  </div>
+                  {p && cupSlot === i && <span className="eyebrow" style={{ color: "#E8465A" }}>YOU</span>}
+                </div>
+              );
+            })}
+          </div>
+          {cupError && <p className="text-sm mb-3" style={{ color: "#ff8b98" }}>{cupError}</p>}
+          {cupRoom.phase === "lobby" && cupSlot != null && !cupRoom.players[cupSlot]?.ready && (
+            <button className="btnP skew dsp9 text-lg px-8 py-3 w-full mb-2" disabled={cupBusy || !cupRoom.players[1]} onClick={readyOnline}>
+              <span className="unskew">{!cupRoom.players[1] ? "WAITING FOR OPPONENT" : cupBusy ? "…" : "I'M READY"}</span>
+            </button>
+          )}
+          {cupRoom.phase === "lobby" && cupRoom.players[cupSlot]?.ready && (
+            <p className="text-sm mb-3" style={{ color: "#7ee2a8" }}>Ready — waiting for opponent…</p>
+          )}
+          {cupRoom.phase === "draft" && cupRoom.players[cupSlot]?.draftDone && (
+            <p className="text-sm mb-3" style={{ color: "#7ee2a8" }}>Lineup locked — waiting for opponent to finish draft…</p>
+          )}
+          <button className="skew chip dsp text-sm px-6 py-2 btnG w-full" onClick={leaveOnlineRoom}>
+            <span className="unskew">LEAVE ROOM</span>
+          </button>
+        </div>
+      )}
+
+      {screen === "cuppass" && (
+        <div className="max-w-md mx-auto px-6 py-16 text-center pop">
+          <div className="eyebrow mb-2" style={{ color: "#E8465A" }}>PASS THE DEVICE</div>
+          <h2 className="dsp text-4xl mb-3" style={{ color: "#EAF0F7" }}>
+            {cupPlayers[1]?.nick}&apos;s turn
+          </h2>
+          <p className="text-sm mb-8" style={{ color: "#93a1b5" }}>
+            {cupPlayers[0]?.nick} locked their five. Same draft pool — build yours.
+          </p>
+          <button className="btnP skew dsp9 text-xl px-10 py-4" onClick={continueLocalCupPass}>
+            <span className="unskew">START {cupPlayers[1]?.nick?.toUpperCase() || "P2"} DRAFT</span>
+          </button>
+        </div>
+      )}
+
+      {screen === "cupresult" && cupResult && (
+        <div className="max-w-2xl mx-auto px-4 py-8 pop text-center">
+          <div className="eyebrow mb-2" style={{ color: "#E8465A" }}>CUP FINAL</div>
+          <div className="dsp9 text-6xl sm:text-7xl mb-2" style={{ color: "#EAF0F7", fontVariantNumeric: "tabular-nums" }}>
+            {cupResult.my}–{cupResult.op}
+          </div>
+          <h2 className="dsp text-2xl mb-1" style={{ color: cupResult.my > cupResult.op ? "#7ee2a8" : "#ff8b98" }}>
+            {cupResult.my > cupResult.op
+              ? `${cupResult.p0.nick} WINS`
+              : cupResult.my < cupResult.op
+                ? `${cupResult.p1.nick} WINS`
+                : "TIE"}
+          </h2>
+          {cupResult.otPeriods > 0 && (
+            <div className="eyebrow mb-4">{cupResult.otPeriods} OT</div>
+          )}
+          <div className="grid grid-cols-2 gap-3 mb-6 text-left">
+            {[
+              { side: cupResult.p0, score: cupResult.my, box: cupResult.boxA, c: "#E8465A" },
+              { side: cupResult.p1, score: cupResult.op, box: cupResult.boxB, c: "#23b4e2" },
+            ].map(({ side, score, box, c }) => (
+              <div key={side.nick} className="panel p-3">
+                <div className="dsp text-lg" style={{ color: c }}>{side.nick} · {score}</div>
+                <div className="eyebrow mb-2" style={{ fontSize: 9 }}>OVR {side === cupResult.p0 ? cupResult.rtA : cupResult.rtB}</div>
+                {(box || []).slice(0, 5).map((b) => (
+                  <div key={b.name} className="flex justify-between text-xs py-0.5" style={{ color: "#93a1b5" }}>
+                    <span>{b.name}</span>
+                    <span className="dsp9" style={{ color: "#EAF0F7" }}>{b.pts}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          <button className="btnP skew dsp9 text-lg px-8 py-3 mb-2" onClick={reset}>
+            <span className="unskew">HOME</span>
+          </button>
+          <button className="skew chip dsp text-sm px-6 py-2 btnG" onClick={() => { setCupError(null); setCupResult(null); setScreen("cupmenu"); }}>
+            <span className="unskew">PLAY AGAIN</span>
+          </button>
+        </div>
+      )}
+
       {/* ============ DRAFT ============ */}
       {screen === "draft" && (
         <div className="max-w-5xl mx-auto px-4 py-6 pop">
           {/* lineup rack */}
           <div className="panel p-4 mb-5">
             <div className="flex items-center justify-between mb-3">
-              <div className="dsp text-xl">YOUR FIVE <span className="eyebrow ml-2">{filled}/5 SIGNED</span></div>
+              <div className="dsp text-xl">
+                {isCupMode
+                  ? `${(mode === "cup" ? cupPlayers[cupDrafting]?.nick : cupRoom?.players?.[cupSlot]?.nick) || "YOU"}'S FIVE`
+                  : "YOUR FIVE"}{" "}
+                <span className="eyebrow ml-2">{filled}/5 SIGNED</span>
+              </div>
               {filled > 0 && <div className="flex items-center gap-2"><span className="eyebrow">TEAM OVR</span><Gem rt={Math.round(myRt)} size={40} /></div>}
             </div>
             <div className="grid grid-cols-5 gap-2">
@@ -3181,7 +3862,7 @@ export default function PerfectSweep() {
                 <span className="eyebrow mr-1">TACTIC</span>
                 <div className="skew segCtrl flex-1 min-w-[260px] max-w-md">
                   {STYLES.map((st) => (
-                    <button key={st.id} onClick={() => setStyle(st)} title={st.tip}
+                    <button key={st.id} onClick={() => (mode === "cupOnline" ? setOnlineStyle(st) : setStyle(st))} title={st.tip}
                       className={`dsp text-xs sm:text-sm ${style.id === st.id ? "active" : ""}`}>
                       <span className="unskew whitespace-nowrap">{st.label}</span>
                       <span className="segTip" aria-hidden="true">{st.tip}</span>
@@ -3246,22 +3927,25 @@ export default function PerfectSweep() {
                 </div>
               </div>
               <button
-                onClick={fiveSet ? startTournament : roll}
-                disabled={!fiveSet && !canRoll}
-                title={fiveSet ? "Starting five is set — tip off"
+                onClick={fiveSet ? (isCupMode ? lockCupLineup : startTournament) : roll}
+                disabled={(!fiveSet && !canRoll) || (fiveSet && isCupMode && cupBusy)}
+                title={fiveSet
+                  ? (isCupMode ? "Lock in your five" : "Starting five is set — tip off")
                   : canRoll ? "Roll a new squad"
                   : "Sign a player from this squad first — or spend a swap"}
                 className={`skew chip dsp9 px-6 py-2.5 tracking-wide w-full sm:w-auto ${fiveSet || canRoll ? "btnP" : "btnDead"}`}>
                 <span className="unskew inline-flex items-center justify-center w-full">
                   {fiveSet
-                    ? <>PLAY THE WORLD CUP<BtnArrow /></>
+                    ? (isCupMode
+                      ? <>{cupBusy ? "LOCKING…" : mode === "cup" && cupDrafting === 0 ? "LOCK IN — PASS DEVICE" : "LOCK IN FIVE"}<BtnArrow /></>
+                      : <>PLAY THE WORLD CUP<BtnArrow /></>)
                     : <><BallIcon />ROLL AGAIN</>}
                 </span>
               </button>
             </div>
             <div className="eyebrow">
               {fiveSet
-                ? "STARTING FIVE SET — TIP OFF WHEN READY"
+                ? (isCupMode ? "STARTING FIVE SET — LOCK IN WHEN READY" : "STARTING FIVE SET — TIP OFF WHEN READY")
                 : pickedThisRoll
                   ? "PLAYER SIGNED — ROLL AGAIN FOR THE NEXT SQUAD"
                   : canRoll
@@ -3289,7 +3973,9 @@ export default function PerfectSweep() {
                       style={{ background: "rgba(10,12,18,.72)", backdropFilter: "blur(1px)" }}>
                       <div className="skew chip dsp9 px-5 py-2 text-sm" style={{ background: "linear-gradient(160deg,#c7ddff,#60a5fa 55%,#2563eb)", color: "#0a1e45" }}>
                         <span className="unskew">
-                          {fiveSet ? "STARTING FIVE SET — PLAY THE WORLD CUP" : "PLAYER SIGNED — ROLL AGAIN FOR THE NEXT SQUAD"}
+                          {fiveSet
+                            ? (isCupMode ? "STARTING FIVE SET — LOCK IN YOUR CUP FINAL FIVE" : "STARTING FIVE SET — PLAY THE WORLD CUP")
+                            : "PLAYER SIGNED — ROLL AGAIN FOR THE NEXT SQUAD"}
                         </span>
                       </div>
                     </div>
@@ -3638,6 +4324,20 @@ export default function PerfectSweep() {
                       <div className="eyebrow" style={{ fontSize: 9 }}>EFFICIENCY</div>
                     </div>
                   </div>
+                  {dailyStreak?.currentStreak > 0 && (
+                    <div className="mt-3 pt-3" style={{ borderTop: "1px solid #1c2333" }}>
+                      <div className="dsp9 text-2xl" style={{ color: "#f2d27c" }}>
+                        {dailyStreak.currentStreak} DAY STREAK
+                      </div>
+                      <div className="eyebrow" style={{ fontSize: 9, color: "#7d8ba0" }}>
+                        {streakMilestone(dailyStreak.currentStreak)
+                          ? `${streakMilestone(dailyStreak.currentStreak)}-DAY MILESTONE`
+                          : dailyStreak.longestStreak > dailyStreak.currentStreak
+                            ? `BEST ${dailyStreak.longestStreak}`
+                            : "PARTICIPATION"}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

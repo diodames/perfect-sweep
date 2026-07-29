@@ -16,8 +16,15 @@ const kvServer = http.createServer((req, res) => {
   req.on("end", () => {
     const run = ([cmd, ...args]) => {
       switch (String(cmd).toLowerCase()) {
-        case "set": store.set(args[0], args[1]); return "OK";
+        case "set": {
+          store.set(args[0], args[1]);
+          return "OK";
+        }
         case "get": return store.has(args[0]) ? store.get(args[0]) : null;
+        case "del": {
+          const n = store.delete(args[0]) ? 1 : 0;
+          return n;
+        }
         case "incr": {
           const n = (Number(store.get(args[0])) || 0) + 1;
           store.set(args[0], String(n)); return n;
@@ -52,6 +59,10 @@ globalThis.fetch = async (input, init) => {
 const runsHandler = (await import("../api/runs.js")).default;
 const shareHandler = (await import("../api/share.js")).default;
 const ogHandler = (await import("../api/og.js")).default;
+const metricsHandler = (await import("../api/metrics.js")).default;
+const adminMetricsHandler = (await import("../api/admin/metrics.js")).default;
+const roomCreateHandler = (await import("../api/room/create.js")).default;
+const roomIdHandler = (await import("../api/room/[roomId].js")).default;
 
 const nodeRes = (res) => ({
   setHeader: (k, v) => res.setHeader(k, v),
@@ -65,7 +76,13 @@ const nodeRes = (res) => ({
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   try {
-    if (url.pathname === "/api/runs") {
+    if (
+      url.pathname === "/api/runs"
+      || url.pathname === "/api/metrics"
+      || url.pathname === "/api/admin/metrics"
+      || url.pathname === "/api/room/create"
+      || url.pathname.startsWith("/api/room/")
+    ) {
       let body = "";
       req.on("data", (c) => (body += c));
       await new Promise((ok) => req.on("end", ok));
@@ -76,7 +93,15 @@ http.createServer(async (req, res) => {
         body: body ? JSON.parse(body) : {},
         socket: req.socket,
       };
-      return await runsHandler(mockReq, nodeRes(res));
+      if (url.pathname === "/api/runs") return await runsHandler(mockReq, nodeRes(res));
+      if (url.pathname === "/api/metrics") return await metricsHandler(mockReq, nodeRes(res));
+      if (url.pathname === "/api/admin/metrics") return await adminMetricsHandler(mockReq, nodeRes(res));
+      if (url.pathname === "/api/room/create") return await roomCreateHandler(mockReq, nodeRes(res));
+      const roomMatch = url.pathname.match(/^\/api\/room\/([A-Z0-9]+)$/i);
+      if (roomMatch) {
+        mockReq.query = { ...mockReq.query, roomId: roomMatch[1].toUpperCase() };
+        return await roomIdHandler(mockReq, nodeRes(res));
+      }
     }
     if (url.pathname.startsWith("/r/")) {
       const mockReq = { method: "GET", headers: req.headers, query: { id: url.pathname.slice(3) } };
