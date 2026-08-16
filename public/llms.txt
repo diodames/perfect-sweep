@@ -1,0 +1,26 @@
+# Perfect Sweep
+
+> Free basketball World Cup fantasy game: roll national squads, draft your dream five, and win the Cup undefeated in the browser.
+
+Perfect Sweep is an independent, free basketball draft game at https://perfectsweep.app/. It is a basketball fantasy game built around legendary FIBA World Cup national teams (1986–2023). No account, no download, no paywall — it runs as a browser basketball game.
+
+Not affiliated with FIBA.
+
+## Play
+
+- [Play Perfect Sweep](https://perfectsweep.app/): Tip off a casual run. Roll a historic national squad, sign one player per position (PG / SG / SF / PF / C), pick a tactic (Run & Gun, Balanced, or Lockdown), and simulate an 8-game World Cup (group stage → 2nd round → quarterfinal → semifinal → final).
+- [How to play](https://perfectsweep.app/?howto): Roll national squads → draft your dream five → win the Cup undefeated. Two swaps per run (nation or year). Win the Final = World Champions. 8–0 = Perfect Sweep, which unlocks a bonus game vs the 1992 Dream Team.
+- [Daily Challenge](https://perfectsweep.app/?daily): One shared draw per UTC day. Post a nickname and compare efficiency on that day's board.
+- [Teams archive](https://perfectsweep.app/?teams): Browse nations, World Cup squads, ratings, and gameplay traits.
+- [Hall of Fame](https://perfectsweep.app/?leaderboard): Reserved for Perfect Sweep + Dream Team winners, ranked by total margin.
+- [About](https://perfectsweep.app/?about): The idea, the archive, and how players are rated.
+
+## For crawlers
+
+- Site: https://perfectsweep.app/
+- Canonical: https://perfectsweep.app/
+- Sitemap: https://perfectsweep.app/sitemap.xml
+- Robots: https://perfectsweep.app/robots.txt
+- This file: https://perfectsweep.app/llms.txt
+
+Keywords: basketball fantasy game, FIBA World Cup game online, free basketball draft game, browser basketball game.

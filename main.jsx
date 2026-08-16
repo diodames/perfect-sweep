@@ -18,3 +18,8 @@ createRoot(document.getElementById("root")).render(
     )}
   </StrictMode>
 );
+
+// Static SEO copy lives in index.html for crawlers that skip JS. Hide it once
+// the game mounts so it does not sit under the app UI (progressive enhancement).
+const seoContent = document.getElementById("seo-content");
+if (seoContent) seoContent.hidden = true;

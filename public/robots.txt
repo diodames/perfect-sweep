@@ -1,0 +1,22 @@
+# Perfect Sweep — https://perfectsweep.app/
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /hall-preview.html
+Disallow: /lb-preview.html
+
+# AI / LLM crawlers — same public pages, no admin or API
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: Claude-Web
+User-agent: PerplexityBot
+User-agent: Google-Extended
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /hall-preview.html
+Disallow: /lb-preview.html
+
+Sitemap: https://perfectsweep.app/sitemap.xml
