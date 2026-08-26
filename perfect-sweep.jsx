@@ -5,7 +5,7 @@ import {
   utcDayKey, isValidDayKey, dailyNumber, formatDayLabel,
   msUntilUtcMidnight, formatCountdown, rng, shuffleWith,
   efficiencyFrom, loadDailyState, saveDailyState, clearDailyState,
-  serializeLineup, serializeGames,
+  serializeLineup, serializeGames, formatRelativeTime,
   roomSeed, roomRng, generateRoomCode, isValidRoomId,
   loadDailyStreak, recordDailyStreak, streakIsLive, formatStreakShare, streakMilestone,
 } from "./daily.js";
@@ -14,6 +14,17 @@ import {
   createRoom, fetchRoom, roomAction, roomActionWithRetry,
 } from "./roomClient.js";
 import { shareCopy } from "./shareCopy.js";
+import {
+  TEAMS, DREAM_TEAM, DREAM_TEAM_ROUND, OPPONENTS, SLOTS, STYLES, ROUNDS,
+  TEAM_INDEX, NATIONS_ARCHIVE, ARCHIVE_STATS, teamRating, resolveTeamRef,
+  isDreamGame, nationSlug,
+} from "./teams.js";
+import {
+  TRAIT_DEFS, SIGNIFICANT_TRAIT_DELTA, playerTraits,
+  simGameWithTraits, boxScore, simCupFinal, canSplashThree, styleFitHint, QN,
+} from "./sim.js";
+import { buildDailyBracket, buildGauntlet, neutralGame } from "./tournament.js";
+import { cpuRunsForDay, mixDailyBoard, CPU_TARGET_N_DEFAULT } from "./cpuDrafters.js";
 
 /** Fire-and-forget anonymous metric → POST /api/metrics (KV counters). */
 function trackEvent(event, props = {}) {
@@ -39,405 +50,6 @@ function trackResult({ perfect, worldChampions, eliminated }) {
   if (eliminated) return "eliminated";
   return "eliminated";
 }
-
-/* ============ DATA: legendary FIBA World Cup national squads ============ */
-const TEAMS = [
-  { name: "USA", season: "1994", c: "#B31942", alt: "#0A3161", players: [
-    { n: 13, name: "Shaquille O'Neal", pos: "C", rt: 95, traits: ["twoWayTerror", "hackAShaq"] }, { n: 5, name: "Reggie Miller", pos: "SG", rt: 89 },
-    { n: 6, name: "Shawn Kemp", pos: "PF", rt: 89 }, { n: 7, name: "Kevin Johnson", pos: "PG", rt: 87 },
-    { n: 9, name: "D. Wilkins", pos: "SF", rt: 88 }, { n: 11, name: "A. Mourning", pos: "PF", rt: 88 },
-  ]},
-  { name: "USA", season: "2010", c: "#0A3161", players: [
-    { n: 5, name: "Kevin Durant", pos: "SF", rt: 94 }, { n: 6, name: "Derrick Rose", pos: "PG", rt: 88, trait: "glassKnee" },
-    { n: 7, name: "R. Westbrook", pos: "SG", rt: 86, trait: "brickFactory" }, { n: 4, name: "C. Billups", pos: "SG", rt: 83 },
-    { n: 10, name: "A. Iguodala", pos: "SF", rt: 82 }, { n: 15, name: "L. Odom", pos: "PF", rt: 81 }, { n: 11, name: "K. Love", pos: "C", rt: 82 },
-  ]},
-  { name: "USA", season: "2014", c: "#B31942", alt: "#0A3161", players: [
-    { n: 4, name: "Stephen Curry", pos: "PG", rt: 92, trait: "flameThrower", traitChance: 0.12 }, { n: 13, name: "James Harden", pos: "SG", rt: 90, trait: "playoffFade" },
-    { n: 10, name: "Kyrie Irving", pos: "SG", rt: 89, trait: "goesMissing" }, { n: 14, name: "Anthony Davis", pos: "PF", rt: 88 },
-    { n: 11, name: "K. Thompson", pos: "SF", rt: 86 }, { n: 12, name: "D. Cousins", pos: "C", rt: 84, trait: "hotHead" },
-  ]},
-  { name: "USA", season: "2023", c: "#0A3161", players: [
-    { n: 5, name: "A. Edwards", pos: "SG", rt: 88 }, { n: 11, name: "J. Brunson", pos: "PG", rt: 85 },
-    { n: 4, name: "T. Haliburton", pos: "SG", rt: 84 }, { n: 15, name: "M. Bridges", pos: "SF", rt: 84 },
-    { n: 13, name: "J. Jackson Jr.", pos: "C", rt: 84 }, { n: 8, name: "P. Banchero", pos: "PF", rt: 82 },
-  ]},
-  { name: "Yugoslavia", season: "1990", c: "#1B4A9C", players: [
-    { n: 10, name: "Dražen Petrović", pos: "SG", rt: 94, trait: "fibaLegend" }, { n: 7, name: "Toni Kukoč", pos: "SF", rt: 90 },
-    { n: 12, name: "Vlade Divac", pos: "C", rt: 89, trait: "flopCity" }, { n: 11, name: "Dino Rađa", pos: "PF", rt: 87 },
-    { n: 15, name: "Ž. Paspalj", pos: "PF", rt: 84 }, { n: 4, name: "J. Zdovc", pos: "PG", rt: 80 },
-  ]},
-  { name: "Yugoslavia", season: "2002", c: "#C6363C", alt: "#2F5FBF", players: [
-    { n: 5, name: "D. Bodiroga", pos: "SF", rt: 91, trait: "mrImportant" }, { n: 8, name: "P. Stojaković", pos: "SG", rt: 89 },
-    { n: 12, name: "Vlade Divac", pos: "C", rt: 86 }, { n: 9, name: "Marko Jarić", pos: "PG", rt: 81 },
-    { n: 6, name: "M. Gurović", pos: "SG", rt: 79 }, { n: 14, name: "P. Drobnjak", pos: "PF", rt: 78 },
-  ]},
-  { name: "Soviet Union", season: "1986", c: "#CC0000", alt: "#D4AF37", players: [
-    { n: 11, name: "Arvydas Sabonis", pos: "C", rt: 95, trait: "goldMedalDna" }, { n: 13, name: "Š. Marčiulionis", pos: "SG", rt: 88 },
-    { n: 5, name: "V. Valters", pos: "PG", rt: 84 }, { n: 9, name: "A. Volkov", pos: "PF", rt: 83 },
-    { n: 7, name: "V. Khomicius", pos: "PF", rt: 81 }, { n: 8, name: "S. Tarakanov", pos: "SF", rt: 79 },
-  ]},
-  { name: "Brazil", season: "1986", c: "#FFDF00", players: [
-    { n: 14, name: "Oscar Schmidt", pos: "SF", rt: 93, trait: "pointGame42" }, { n: 6, name: "Marcel", pos: "SG", rt: 85 },
-    { n: 5, name: "Maury", pos: "PG", rt: 80 }, { n: 4, name: "Israel", pos: "SG", rt: 79 },
-    { n: 11, name: "Gerson", pos: "PF", rt: 78 }, { n: 15, name: "Rolando", pos: "C", rt: 77 },
-  ]},
-  { name: "Argentina", season: "2002", c: "#6CACE4", players: [
-    { n: 5, name: "Manu Ginóbili", pos: "SG", rt: 91, trait: "chaosEnergy" }, { n: 4, name: "Luis Scola", pos: "PF", rt: 88 },
-    { n: 7, name: "A. Nocioni", pos: "SF", rt: 84 }, { n: 14, name: "F. Oberto", pos: "C", rt: 82 },
-    { n: 8, name: "Pepe Sánchez", pos: "PG", rt: 81 }, { n: 10, name: "C. Delfino", pos: "SF", rt: 80 },
-  ]},
-  { name: "Argentina", season: "2019", c: "#75AADB", players: [
-    { n: 4, name: "Luis Scola", pos: "PF", rt: 85 }, { n: 7, name: "F. Campazzo", pos: "PG", rt: 86 },
-    { n: 8, name: "N. Laprovittola", pos: "SG", rt: 81 }, { n: 14, name: "G. Deck", pos: "SF", rt: 81 },
-    { n: 29, name: "P. Garino", pos: "SG", rt: 77 }, { n: 12, name: "M. Delía", pos: "C", rt: 76 },
-  ]},
-  { name: "Spain", season: "2006", c: "#AA151B", alt: "#F1BF00", players: [
-    { n: 4, name: "Pau Gasol", pos: "PF", rt: 94, trait: "elCapitan" }, { n: 7, name: "J.C. Navarro", pos: "SG", rt: 88 },
-    { n: 8, name: "José Calderón", pos: "PG", rt: 85 }, { n: 15, name: "J. Garbajosa", pos: "SF", rt: 83 },
-    { n: 13, name: "Marc Gasol", pos: "C", rt: 79, stretch: true }, { n: 10, name: "Rudy Fernández", pos: "SF", rt: 80 },
-  ]},
-  { name: "Spain", season: "2019", c: "#F1BF00", players: [
-    { n: 9, name: "Ricky Rubio", pos: "PG", rt: 88 }, { n: 13, name: "Marc Gasol", pos: "C", rt: 86 },
-    { n: 5, name: "Rudy Fernández", pos: "SF", rt: 80 }, { n: 23, name: "Sergio Llull", pos: "SG", rt: 81 },
-    { n: 41, name: "J. Hernangómez", pos: "PF", rt: 79 }, { n: 14, name: "W. Hernangómez", pos: "PF", rt: 78 },
-  ]},
-  { name: "Spain", season: "2023", c: "#AA151B", alt: "#F1BF00", players: [
-    { n: 2, name: "Lorenzo Brown", pos: "PG", rt: 87 }, { n: 14, name: "W. Hernangómez", pos: "C", rt: 88 },
-    { n: 41, name: "J. Hernangómez", pos: "PF", rt: 83 }, { n: 23, name: "Sergio Llull", pos: "SG", rt: 82 },
-    { n: 5, name: "Rudy Fernández", pos: "SF", rt: 80 }, { n: 7, name: "Santi Aldama", pos: "PF", rt: 81 },
-  ]},
-  { name: "Germany", season: "2023", c: "#DD0000", alt: "#FFCE00", players: [
-    { n: 17, name: "D. Schröder", pos: "PG", rt: 89, trait: "elCapitan" }, { n: 22, name: "Franz Wagner", pos: "SF", rt: 87 },
-    { n: 10, name: "Daniel Theis", pos: "C", rt: 81 }, { n: 13, name: "Moritz Wagner", pos: "PF", rt: 80 },
-    { n: 7, name: "J. Voigtmann", pos: "PF", rt: 78 }, { n: 32, name: "Andreas Obst", pos: "SG", rt: 79 },
-  ]},
-  { name: "Germany", season: "2002", c: "#1a1a1a", alt: "#C9CED6", players: [
-    { n: 14, name: "Dirk Nowitzki", pos: "PF", rt: 94, trait: "unicorn" }, { n: 6, name: "A. Femerling", pos: "C", rt: 78 },
-    { n: 5, name: "M. Okulaja", pos: "SF", rt: 79 }, { n: 10, name: "S. Hamann", pos: "PG", rt: 76 },
-    { n: 7, name: "R. Garrett", pos: "SG", rt: 77 }, { n: 12, name: "P. Femerling", pos: "PF", rt: 75 },
-  ]},
-  { name: "Serbia", season: "2014", c: "#C6363C", alt: "#1F4E9C", players: [
-    { n: 4, name: "Miloš Teodosić", pos: "PG", rt: 88, trait: "connector" }, { n: 7, name: "B. Bogdanović", pos: "SG", rt: 85 },
-    { n: 10, name: "N. Bjelica", pos: "PF", rt: 82 }, { n: 9, name: "S. Marković", pos: "SG", rt: 79 },
-    { n: 13, name: "M. Raduljica", pos: "C", rt: 79 }, { n: 8, name: "N. Kalinić", pos: "SF", rt: 79 },
-  ]},
-  { name: "Serbia", season: "2019", c: "#C6363C", alt: "#1F4E9C", players: [
-    { n: 15, name: "Nikola Jokić", pos: "C", rt: 96, trait: "connector" }, { n: 7, name: "B. Bogdanović", pos: "SG", rt: 90 },
-    { n: 8, name: "N. Bjelica", pos: "PF", rt: 84 }, { n: 24, name: "Stefan Jović", pos: "PG", rt: 82 },
-    { n: 11, name: "V. Lučić", pos: "SF", rt: 80 }, { n: 51, name: "Boban Marjanović", pos: "C", rt: 80 },
-  ]},
-  { name: "Greece", season: "2006", c: "#0D5EAF", players: [
-    { n: 4, name: "T. Papaloukas", pos: "PG", rt: 88 }, { n: 13, name: "D. Diamantidis", pos: "SG", rt: 88 },
-    { n: 7, name: "V. Spanoulis", pos: "SG", rt: 87 }, { n: 12, name: "S. Schortsanitis", pos: "C", rt: 83 },
-    { n: 11, name: "A. Fotsis", pos: "PF", rt: 80 }, { n: 14, name: "M. Kakiouzis", pos: "SF", rt: 79 },
-  ]},
-  { name: "Lithuania", season: "2006", c: "#046A38", alt: "#FDB913", players: [
-    { n: 6, name: "A. Macijauskas", pos: "SG", rt: 88 }, { n: 9, name: "D. Songaila", pos: "PF", rt: 84 },
-    { n: 11, name: "Linas Kleiza", pos: "SF", rt: 83 }, { n: 7, name: "D. Lavrinovič", pos: "PF", rt: 82 },
-    { n: 15, name: "R. Javtokas", pos: "C", rt: 81 }, { n: 10, name: "M. Kalnietis", pos: "PG", rt: 78 },
-  ]},
-  { name: "Lithuania", season: "2010", c: "#046A38", players: [
-    { n: 11, name: "Linas Kleiza", pos: "SF", rt: 85 }, { n: 13, name: "D. Songaila", pos: "PF", rt: 80 },
-    { n: 5, name: "M. Kalnietis", pos: "PG", rt: 79 }, { n: 17, name: "J. Valančiūnas", pos: "C", rt: 78 },
-    { n: 15, name: "R. Javtokas", pos: "PF", rt: 78 }, { n: 8, name: "R. Seibutis", pos: "SG", rt: 76 },
-  ]},
-  { name: "France", season: "2019", c: "#002395", players: [
-    { n: 27, name: "Rudy Gobert", pos: "C", rt: 88, traits: ["greatWall", "foulTrouble"], traitChance: 0.15 }, { n: 10, name: "E. Fournier", pos: "SG", rt: 85 },
-    { n: 12, name: "Nando De Colo", pos: "PG", rt: 84 }, { n: 5, name: "Nicolas Batum", pos: "SF", rt: 83 },
-    { n: 21, name: "A. Albicy", pos: "SG", rt: 77 }, { n: 15, name: "A. M'Baye", pos: "PF", rt: 76 },
-  ]},
-  { name: "Croatia", season: "1994", c: "#FF0000", alt: "#0F3C8C", players: [
-    { n: 7, name: "Toni Kukoč", pos: "SF", rt: 91 }, { n: 11, name: "Dino Rađa", pos: "PF", rt: 88 },
-    { n: 10, name: "A. Komazec", pos: "SG", rt: 82 }, { n: 9, name: "V. Perasović", pos: "SF", rt: 81 },
-    { n: 15, name: "S. Vranković", pos: "C", rt: 80 }, { n: 5, name: "V. Šretl", pos: "PG", rt: 75 },
-  ]},
-  { name: "Croatia", season: "2010", c: "#FF0000", alt: "#0F3C8C", players: [
-    { n: 25, name: "Ante Tomić", pos: "C", rt: 84 }, { n: 44, name: "B. Bogdanović", pos: "SG", rt: 83 },
-    { n: 10, name: "Z. Planinić", pos: "PG", rt: 82 }, { n: 5, name: "R. Ukić", pos: "SG", rt: 80 },
-    { n: 7, name: "M. Banić", pos: "PF", rt: 79 }, { n: 9, name: "M. Popović", pos: "SF", rt: 78 },
-  ]},
-  { name: "Slovenia", season: "2023", c: "#00A94F", players: [
-    { n: 77, name: "Luka Dončić", pos: "PG", rt: 96, traits: ["heroBall", "refMeltdown"] }, { n: 6, name: "A. Tobey", pos: "C", rt: 79 },
-    { n: 3, name: "K. Prepelič", pos: "SG", rt: 79 }, { n: 31, name: "V. Čančar", pos: "PF", rt: 78 },
-    { n: 11, name: "J. Blažič", pos: "SF", rt: 76 }, { n: 30, name: "Z. Dragić", pos: "SG", rt: 75 },
-  ]},
-  { name: "Australia", season: "2014", c: "#00843D", players: [
-    { n: 5, name: "Patty Mills", pos: "PG", rt: 86 }, { n: 6, name: "M. Dellavedova", pos: "SG", rt: 81 },
-    { n: 12, name: "Aron Baynes", pos: "C", rt: 82 }, { n: 7, name: "Joe Ingles", pos: "SF", rt: 80 },
-    { n: 4, name: "D. Andersen", pos: "PF", rt: 78 }, { n: 9, name: "Ryan Broekhoff", pos: "SF", rt: 76 },
-  ]},
-  { name: "Australia", season: "2019", c: "#00843D", players: [
-    { n: 5, name: "Patty Mills", pos: "PG", rt: 87 }, { n: 7, name: "Joe Ingles", pos: "SF", rt: 82 },
-    { n: 12, name: "Aron Baynes", pos: "C", rt: 79 }, { n: 43, name: "C. Goulding", pos: "SG", rt: 77 },
-    { n: 34, name: "Jock Landale", pos: "PF", rt: 77 }, { n: 11, name: "N. Kay", pos: "PF", rt: 75 },
-  ]},
-  { name: "Canada", season: "2023", c: "#D80621", alt: "#2C3E50", players: [
-    { n: 2, name: "S. Gilgeous-Alexander", pos: "PG", rt: 93 }, { n: 24, name: "Dillon Brooks", pos: "SF", rt: 82 },
-    { n: 9, name: "RJ Barrett", pos: "SG", rt: 81 }, { n: 13, name: "Kelly Olynyk", pos: "C", rt: 80, stretch: true },
-    { n: 5, name: "Lu Dort", pos: "SF", rt: 79 }, { n: 4, name: "D. Powell", pos: "PF", rt: 77 },
-  ]},
-  { name: "China", season: "2002", c: "#DE2910", alt: "#FFD700", players: [
-    { n: 13, name: "Yao Ming", pos: "C", rt: 90, trait: "greatWall" }, { n: 14, name: "Wang Zhizhi", pos: "PF", rt: 81 },
-    { n: 9, name: "Hu Weidong", pos: "SG", rt: 78 }, { n: 8, name: "Liu Wei", pos: "PG", rt: 75 },
-    { n: 15, name: "M. Batere", pos: "SF", rt: 76 }, { n: 6, name: "Li Nan", pos: "PF", rt: 74 },
-  ]},
-  { name: "Puerto Rico", season: "1990", c: "#EF3E42", alt: "#1A4FA0", players: [
-    { n: 12, name: "J. \"Piculín\" Ortiz", pos: "C", rt: 85 }, { n: 6, name: "R. Rivas", pos: "PF", rt: 79 },
-    { n: 4, name: "F. Rivera", pos: "PG", rt: 78 }, { n: 10, name: "J. Carter", pos: "SG", rt: 77 },
-    { n: 8, name: "E. Casiano", pos: "SF", rt: 76 }, { n: 14, name: "M. Vicéns", pos: "SG", rt: 74 },
-  ]},
-  { name: "Serbia", season: "2023", c: "#C6363C", alt: "#1F4E9C", players: [
-    { n: 7, name: "B. Bogdanović", pos: "SG", rt: 88 }, { n: 22, name: "V. Micić", pos: "PG", rt: 84 },
-    { n: 9, name: "N. Milutinov", pos: "C", rt: 81 }, { n: 8, name: "N. Jović", pos: "SF", rt: 77 },
-    { n: 13, name: "F. Petrušev", pos: "PF", rt: 79 }, { n: 6, name: "A. Avramović", pos: "PG", rt: 77 },
-  ]},
-  { name: "Greece", season: "2019", c: "#0D5EAF", players: [
-    { n: 34, name: "G. Antetokounmpo", pos: "PF", rt: 95, trait: "secondHalfBeast" }, { n: 15, name: "G. Printezis", pos: "SF", rt: 80 },
-    { n: 4, name: "N. Calathes", pos: "PG", rt: 83 }, { n: 16, name: "K. Papanikolaou", pos: "PF", rt: 79 },
-    { n: 5, name: "I. Bourousis", pos: "C", rt: 79 }, { n: 43, name: "T. Antetokounmpo", pos: "SG", rt: 74 },
-  ]},
-  { name: "Lithuania", season: "2019", c: "#FDB913", players: [
-    { n: 17, name: "J. Valančiūnas", pos: "C", rt: 86 }, { n: 11, name: "D. Sabonis", pos: "PF", rt: 87 },
-    { n: 5, name: "M. Kalnietis", pos: "PG", rt: 79 }, { n: 21, name: "M. Kuzminskas", pos: "SF", rt: 78 },
-    { n: 13, name: "R. Jokubaitis", pos: "SG", rt: 76 }, { n: 8, name: "J. Mačiulis", pos: "SG", rt: 76 },
-  ]},
-  { name: "France", season: "2014", c: "#002395", players: [
-    { n: 9, name: "Tony Parker", pos: "PG", rt: 90, trait: "elCapitan" }, { n: 8, name: "Boris Diaw", pos: "PF", rt: 83 },
-    { n: 5, name: "Nicolas Batum", pos: "SF", rt: 84 }, { n: 27, name: "Rudy Gobert", pos: "C", rt: 82 },
-    { n: 12, name: "Nando De Colo", pos: "SG", rt: 83 }, { n: 6, name: "T. Heurtel", pos: "SG", rt: 78 },
-  ]},
-  { name: "Croatia", season: "2019", c: "#FF0000", alt: "#0F3C8C", players: [
-    { n: 44, name: "B. Bogdanović", pos: "SF", rt: 85 }, { n: 24, name: "D. Šarić", pos: "PF", rt: 83 },
-    { n: 40, name: "I. Zubac", pos: "C", rt: 81 }, { n: 8, name: "M. Hezonja", pos: "SG", rt: 79 },
-    { n: 10, name: "K. Ramljak", pos: "PG", rt: 75 }, { n: 5, name: "R. Ukić", pos: "SG", rt: 76 },
-  ]},
-  { name: "Australia", season: "2023", c: "#FFCD00", players: [
-    { n: 3, name: "Josh Giddey", pos: "PG", rt: 84 }, { n: 5, name: "Patty Mills", pos: "SG", rt: 81 },
-    { n: 34, name: "Jock Landale", pos: "C", rt: 80, stretch: true }, { n: 6, name: "Josh Green", pos: "SF", rt: 78 },
-    { n: 7, name: "Dante Exum", pos: "SG", rt: 78 }, { n: 9, name: "X. Cooks", pos: "PF", rt: 76 },
-  ]},
-  { name: "Brazil", season: "2010", c: "#FFDF00", players: [
-    { n: 12, name: "Nenê", pos: "C", rt: 85 }, { n: 6, name: "Leandro Barbosa", pos: "SG", rt: 84 },
-    { n: 11, name: "Anderson Varejão", pos: "PF", rt: 83 }, { n: 9, name: "Marcelo Huertas", pos: "PG", rt: 79 },
-    { n: 8, name: "Alex Garcia", pos: "SF", rt: 78 }, { n: 4, name: "Marcelinho Machado", pos: "SG", rt: 77 },
-  ]},
-  { name: "Brazil", season: "2019", c: "#009C3B", alt: "#FFDF00", players: [
-    { n: 19, name: "Leandro Barbosa", pos: "SG", rt: 82 }, { n: 5, name: "Raul Neto", pos: "PG", rt: 81 },
-    { n: 11, name: "Anderson Varejão", pos: "C", rt: 80 }, { n: 14, name: "Marquinhos", pos: "SF", rt: 79 },
-    { n: 9, name: "Vítor Benite", pos: "SG", rt: 78 }, { n: 6, name: "Cristiano Felício", pos: "PF", rt: 77 },
-  ]},
-  { name: "China", season: "2019", c: "#DE2910", alt: "#FFD700", players: [
-    { n: 11, name: "Yi Jianlian", pos: "PF", rt: 82 }, { n: 6, name: "Guo Ailun", pos: "PG", rt: 78 },
-    { n: 15, name: "Zhou Qi", pos: "C", rt: 77, stretch: true }, { n: 9, name: "Zhao Rui", pos: "SG", rt: 76 },
-    { n: 12, name: "Ding Yanyuhang", pos: "SF", rt: 77 }, { n: 5, name: "Fang Shuo", pos: "SG", rt: 74 },
-  ]},
-  /* --- expansion: Europe depth + Africa / Asia / Oceania coverage --- */
-  { name: "Italy", season: "2006", c: "#009246", alt: "#CE2B37", players: [
-    { n: 7, name: "Gianluca Basile", pos: "SG", rt: 85, trait: "flameThrower" }, { n: 5, name: "G. Pozzecco", pos: "PG", rt: 80 },
-    { n: 12, name: "M. Mordente", pos: "SF", rt: 78 }, { n: 14, name: "Denis Marconato", pos: "C", rt: 81 },
-    { n: 15, name: "L. Garri", pos: "PF", rt: 77 }, { n: 8, name: "M. Soragna", pos: "SG", rt: 76 },
-  ]},
-  { name: "Turkey", season: "2010", c: "#E30A17", players: [
-    { n: 6, name: "Hidayet Türkoğlu", pos: "SF", rt: 87, trait: "mrImportant", traitChance: 0.05 }, { n: 7, name: "Ömer Aşık", pos: "C", rt: 82 },
-    { n: 23, name: "E. İlyasova", pos: "PF", rt: 82 }, { n: 4, name: "Kerem Tunçeri", pos: "PG", rt: 79 },
-    { n: 10, name: "Ömer Onan", pos: "SG", rt: 78 }, { n: 12, name: "Semih Erden", pos: "PF", rt: 77 },
-  ]},
-  { name: "Russia", season: "2010", c: "#0039A6", alt: "#D52B1E", players: [
-    { n: 47, name: "A. Kirilenko", pos: "SF", rt: 89, trait: "theRussian" }, { n: 15, name: "V. Khryapa", pos: "PF", rt: 82 },
-    { n: 11, name: "Timofey Mozgov", pos: "C", rt: 80 }, { n: 4, name: "A. Bykov", pos: "PG", rt: 78 },
-    { n: 8, name: "V. Fridzon", pos: "SG", rt: 79 }, { n: 10, name: "S. Monia", pos: "SF", rt: 76 },
-  ]},
-  { name: "Latvia", season: "2023", c: "#9E3039", alt: "#FFFFFF", players: [
-    { n: 6, name: "K. Porziņģis", pos: "C", rt: 90, trait: "theTower" }, { n: 42, name: "Dāvis Bertāns", pos: "SF", rt: 81 },
-    { n: 8, name: "Dairis Bertāns", pos: "SG", rt: 78 }, { n: 13, name: "A. Žagars", pos: "PG", rt: 79 },
-    { n: 24, name: "A. Gražulis", pos: "PF", rt: 78 }, { n: 0, name: "R. Kurucs", pos: "SF", rt: 76 },
-  ]},
-  { name: "Czechia", season: "2019", c: "#11457E", alt: "#D7141A", players: [
-    { n: 8, name: "T. Satoranský", pos: "PG", rt: 84, trait: "connector" }, { n: 17, name: "J. Bohačík", pos: "SG", rt: 82 },
-    { n: 11, name: "Blake Schilb", pos: "SF", rt: 79 }, { n: 7, name: "V. Hruban", pos: "SF", rt: 78 },
-    { n: 12, name: "O. Balvín", pos: "C", rt: 77 }, { n: 1, name: "Patrik Auda", pos: "PF", rt: 76 },
-  ]},
-  { name: "Nigeria", season: "2023", c: "#008751", alt: "#FFFFFF", players: [
-    { n: 7, name: "Gabe Vincent", pos: "PG", rt: 82 }, { n: 20, name: "Josh Okogie", pos: "SF", rt: 81 },
-    { n: 13, name: "Jordan Nwora", pos: "PF", rt: 80 }, { n: 5, name: "C. Moneke", pos: "PF", rt: 78 },
-    { n: 9, name: "C. Metu", pos: "C", rt: 78 }, { n: 11, name: "K. Okpala", pos: "SG", rt: 76 },
-  ]},
-  { name: "Angola", season: "2006", c: "#C8102E", alt: "#000000", players: [
-    { n: 10, name: "O. Cipriano", pos: "SF", rt: 80 }, { n: 5, name: "Carlos Almeida", pos: "PG", rt: 78 },
-    { n: 8, name: "E. Mingas", pos: "PF", rt: 79 }, { n: 14, name: "J. Costa", pos: "C", rt: 76 },
-    { n: 9, name: "A. Morais", pos: "SG", rt: 75 }, { n: 12, name: "V. Muzemba", pos: "PF", rt: 74 },
-  ]},
-  { name: "Japan", season: "2023", c: "#BC002D", players: [
-    { n: 8, name: "Rui Hachimura", pos: "PF", rt: 86, trait: "risingSun" }, { n: 5, name: "Yuta Watanabe", pos: "SF", rt: 80 },
-    { n: 2, name: "Yuki Kawamura", pos: "PG", rt: 80 }, { n: 24, name: "J. Hawkinson", pos: "C", rt: 79 },
-    { n: 12, name: "Y. Togashi", pos: "SG", rt: 76 }, { n: 18, name: "K. Tominaga", pos: "SG", rt: 75 },
-  ]},
-  { name: "New Zealand", season: "2002", c: "#111111", alt: "#5B9BD5", players: [
-    { n: 13, name: "Pero Cameron", pos: "PF", rt: 82 }, { n: 5, name: "Phill Jones", pos: "SG", rt: 79 },
-    { n: 7, name: "Sean Marks", pos: "C", rt: 78 }, { n: 10, name: "Kirk Penney", pos: "SF", rt: 78 },
-    { n: 4, name: "P. Henare", pos: "PG", rt: 75 }, { n: 8, name: "D. Boucher", pos: "PF", rt: 74 },
-  ]},
-  /* --- curated gaps: notable WC nations still missing from the draft pool --- */
-  { name: "Dominican Republic", season: "2023", c: "#002D62", alt: "#CE1126", players: [
-    { n: 32, name: "K.A. Towns", pos: "C", rt: 92, trait: "theTower" }, { n: 3, name: "Andrés Feliz", pos: "PG", rt: 80 },
-    { n: 11, name: "Angel Delgado", pos: "PF", rt: 81 }, { n: 9, name: "Jean Montero", pos: "SG", rt: 79 },
-    { n: 5, name: "Victor Liz", pos: "SF", rt: 77 }, { n: 25, name: "Lester Quiñones", pos: "SG", rt: 76 },
-  ]},
-  { name: "Philippines", season: "2023", c: "#0038A8", alt: "#CE1126", players: [
-    { n: 6, name: "Jordan Clarkson", pos: "SG", rt: 88, trait: "flameThrower" }, { n: 15, name: "Kai Sotto", pos: "C", rt: 80, stretch: true },
-    { n: 1, name: "June Mar Fajardo", pos: "PF", rt: 79 }, { n: 7, name: "Dwight Ramos", pos: "SF", rt: 78 },
-    { n: 4, name: "Kiefer Ravena", pos: "PG", rt: 77 }, { n: 23, name: "Japeth Aguilar", pos: "PF", rt: 76 },
-  ]},
-  { name: "Finland", season: "2023", c: "#002F6C", alt: "#FFFFFF", players: [
-    { n: 23, name: "Lauri Markkanen", pos: "PF", rt: 91, trait: "unicorn" }, { n: 7, name: "Sasu Salin", pos: "SG", rt: 79 },
-    { n: 18, name: "Mikael Jantunen", pos: "SF", rt: 78 }, { n: 9, name: "Edon Maxhuni", pos: "PG", rt: 77 },
-    { n: 11, name: "Alexander Madsen", pos: "C", rt: 77, stretch: true }, { n: 21, name: "Shawn Huff", pos: "SF", rt: 75 },
-  ]},
-  { name: "South Sudan", season: "2023", c: "#0F47AF", alt: "#FC0119", players: [
-    { n: 0, name: "Carlik Jones", pos: "PG", rt: 84, trait: "chaosEnergy" }, { n: 32, name: "Wenyen Gabriel", pos: "PF", rt: 80 },
-    { n: 9, name: "Marial Shayok", pos: "SG", rt: 79 }, { n: 14, name: "Mangok Mathiang", pos: "C", rt: 78 },
-    { n: 5, name: "Nuni Omot", pos: "SF", rt: 77 }, { n: 11, name: "JT Thor", pos: "PF", rt: 76 },
-  ]},
-  { name: "Montenegro", season: "2023", c: "#C40308", alt: "#FFC72C", players: [
-    { n: 9, name: "Nikola Vučević", pos: "C", rt: 88 }, { n: 11, name: "B. Dubljević", pos: "PF", rt: 81 },
-    { n: 4, name: "N. Ivanović", pos: "PG", rt: 79 }, { n: 7, name: "D. Simonović", pos: "SG", rt: 77 },
-    { n: 14, name: "M. Popović", pos: "SF", rt: 76 }, { n: 19, name: "M. Radončić", pos: "PF", rt: 75 },
-  ]},
-  { name: "Iran", season: "2014", c: "#239F40", alt: "#DA0000", players: [
-    { n: 15, name: "Hamed Haddadi", pos: "C", rt: 87, trait: "greatWall", traitChance: 0.05 }, { n: 7, name: "S. Nikkhah Bahrami", pos: "SF", rt: 81 },
-    { n: 5, name: "Mehdi Kamrani", pos: "PG", rt: 79 }, { n: 8, name: "O. Hassanzadeh", pos: "SG", rt: 77 },
-    { n: 12, name: "A. Davari", pos: "PF", rt: 76 }, { n: 14, name: "A. Kazemi", pos: "PF", rt: 75 },
-  ]},
-  { name: "Georgia", season: "2023", c: "#FFFFFF", alt: "#FF0000", players: [
-    { n: 23, name: "T. Shengelia", pos: "PF", rt: 87, trait: "mrImportant" }, { n: 4, name: "T. McFadden", pos: "SG", rt: 81 },
-    { n: 8, name: "B. Bitadze", pos: "C", rt: 82 }, { n: 11, name: "S. Mamukelashvili", pos: "SF", rt: 78 },
-    { n: 5, name: "T. Pkhakadze", pos: "PG", rt: 76 }, { n: 9, name: "G. Shermadini", pos: "C", rt: 80 },
-  ]},
-  { name: "Cape Verde", season: "2023", c: "#003893", alt: "#CF2027", players: [
-    { n: 22, name: "Edy Tavares", pos: "C", rt: 88, trait: "greatWall" }, { n: 5, name: "I. Almeida", pos: "PG", rt: 78 },
-    { n: 8, name: "W. Mendes", pos: "SF", rt: 77 }, { n: 11, name: "B. da Rosa", pos: "SG", rt: 76 },
-    { n: 14, name: "K. Correia", pos: "PF", rt: 75 }, { n: 7, name: "P. Abreu", pos: "SG", rt: 74 },
-  ]},
-  { name: "Jordan", season: "2023", c: "#000000", alt: "#CE1126", players: [
-    { n: 24, name: "R. Hollis-Jefferson", pos: "SF", rt: 84, trait: "chaosEnergy" }, { n: 9, name: "A. Tucker", pos: "SG", rt: 79 },
-    { n: 5, name: "F. Alnajjar", pos: "PG", rt: 76 }, { n: 15, name: "A. Abu Hawwas", pos: "PF", rt: 76 },
-    { n: 21, name: "A. Ibrahim", pos: "C", rt: 75 }, { n: 8, name: "Z. Al Dwairi", pos: "PF", rt: 74 },
-  ]},
-  { name: "Venezuela", season: "2019", c: "#FFCC00", alt: "#CF144C", players: [
-    { n: 14, name: "G. Vásquez", pos: "PG", rt: 82 }, { n: 6, name: "J. Vargas", pos: "SG", rt: 79 },
-    { n: 15, name: "N. Colmenares", pos: "PF", rt: 78 }, { n: 4, name: "G. Cox", pos: "SF", rt: 77 },
-    { n: 12, name: "W. Guillen", pos: "C", rt: 76 }, { n: 8, name: "H. Carrera", pos: "SG", rt: 75 },
-  ]},
-  { name: "Mexico", season: "2014", c: "#006847", alt: "#CE1126", players: [
-    { n: 14, name: "Gustavo Ayón", pos: "C", rt: 84, trait: "connector" }, { n: 9, name: "J. Gutiérrez", pos: "PG", rt: 79 },
-    { n: 6, name: "O. Méndez", pos: "SG", rt: 77 }, { n: 15, name: "H. Hernández", pos: "PF", rt: 76 },
-    { n: 5, name: "P. Stoll", pos: "SG", rt: 76 }, { n: 11, name: "I. Ramos", pos: "SF", rt: 75 },
-  ]},
-  { name: "Poland", season: "2019", c: "#FFFFFF", alt: "#DC143C", players: [
-    { n: 5, name: "A. Waczyński", pos: "SG", rt: 81 }, { n: 3, name: "M. Ponitka", pos: "SF", rt: 82 },
-    { n: 34, name: "A. Hrycaniuk", pos: "C", rt: 77 }, { n: 6, name: "Ł. Koszarek", pos: "PG", rt: 78 },
-    { n: 9, name: "D. Slaughter", pos: "PF", rt: 79 }, { n: 15, name: "K. Kulig", pos: "PF", rt: 75 },
-  ]},
-  { name: "Senegal", season: "2019", c: "#00853F", alt: "#FDEF42", players: [
-    { n: 14, name: "Gorgui Dieng", pos: "C", rt: 84 }, { n: 5, name: "M. Faye", pos: "SG", rt: 78 },
-    { n: 8, name: "X. Rathan-Mayes", pos: "PG", rt: 79 }, { n: 12, name: "M. Ndoye", pos: "SF", rt: 76 },
-    { n: 15, name: "Y. Ndoye", pos: "PF", rt: 77 }, { n: 7, name: "B. Dalmeida", pos: "SG", rt: 74 },
-  ]},
-  { name: "Lebanon", season: "2006", c: "#EE161F", alt: "#FFFFFF", players: [
-    { n: 10, name: "Fadi El Khatib", pos: "SF", rt: 85, trait: "fibaLegend" }, { n: 4, name: "R. El Hindi", pos: "PG", rt: 77 },
-    { n: 14, name: "J. Abdelnour", pos: "SG", rt: 76 }, { n: 12, name: "W. Fahed", pos: "C", rt: 78 },
-    { n: 8, name: "A. Bawji", pos: "PF", rt: 75 }, { n: 6, name: "N. El Hage", pos: "SG", rt: 74 },
-  ]},
-  { name: "South Korea", season: "2014", c: "#0047A0", alt: "#CD2E3A", players: [
-    { n: 10, name: "Moon Tae-jong", pos: "SF", rt: 80 }, { n: 6, name: "Kim Tae-sul", pos: "PG", rt: 78 },
-    { n: 11, name: "Cho Sung-min", pos: "SG", rt: 77 }, { n: 15, name: "Kim Jong-kyu", pos: "C", rt: 78 },
-    { n: 9, name: "Yang Dong-geun", pos: "SG", rt: 76 }, { n: 14, name: "Lee Seung-jun", pos: "PF", rt: 75 },
-  ]},
-  /* USA '06 — Japan WC bronze; LeBron / Wade / Melo / CP3 era before the Redeem Team */
-  { name: "USA", season: "2006", c: "#B31942", alt: "#0A3161", players: [
-    { n: 6, name: "LeBron James", pos: "SF", rt: 92, trait: "mrImportant" }, { n: 3, name: "Dwyane Wade", pos: "SG", rt: 91 },
-    { n: 15, name: "Carmelo Anthony", pos: "PF", rt: 88, trait: "isoBlackHole" }, { n: 13, name: "Chris Paul", pos: "PG", rt: 86 },
-    { n: 1, name: "Dwight Howard", pos: "C", rt: 87 }, { n: 4, name: "Chris Bosh", pos: "PF", rt: 85 },
-  ]},
-  /* --- complete 1986–2023 World Cup podiums (gold / silver / bronze) --- */
-  { name: "USA", season: "1986", c: "#0A3161", alt: "#B31942", players: [
-    { n: 11, name: "David Robinson", pos: "C", rt: 93, trait: "greatWall" }, { n: 7, name: "Kenny Smith", pos: "PG", rt: 86 },
-    { n: 15, name: "Charles Smith", pos: "PF", rt: 83 }, { n: 14, name: "Armon Gilliam", pos: "PF", rt: 82 },
-    { n: 8, name: "Sean Elliott", pos: "SF", rt: 82 }, { n: 6, name: "Steve Kerr", pos: "SG", rt: 78 },
-  ]},
-  { name: "Yugoslavia", season: "1986", c: "#1B4A9C", players: [
-    { n: 4, name: "Dražen Petrović", pos: "SG", rt: 93, trait: "fibaLegend" }, { n: 12, name: "Vlade Divac", pos: "C", rt: 86 },
-    { n: 14, name: "Dino Rađa", pos: "PF", rt: 85 }, { n: 10, name: "Zoran Čutura", pos: "SF", rt: 80 },
-    { n: 5, name: "Zoran Radović", pos: "PG", rt: 78 }, { n: 15, name: "S. Vranković", pos: "C", rt: 79 },
-  ]},
-  { name: "Soviet Union", season: "1990", c: "#CC0000", alt: "#D4AF37", players: [
-    { n: 9, name: "A. Volkov", pos: "PF", rt: 87, trait: "mrImportant", traitChance: 0.10 }, { n: 7, name: "V. Tikhonenko", pos: "SF", rt: 85 },
-    { n: 5, name: "S. Bazarevich", pos: "PG", rt: 84 }, { n: 10, name: "G. Vetra", pos: "SG", rt: 81 },
-    { n: 14, name: "V. Goborov", pos: "C", rt: 80 }, { n: 8, name: "V. Berezhnoy", pos: "PF", rt: 77 },
-  ]},
-  { name: "USA", season: "1990", c: "#B31942", alt: "#0A3161", players: [
-    { n: 15, name: "Alonzo Mourning", pos: "C", rt: 88, trait: "hotHead", traitChance: 0.05 }, { n: 9, name: "Kenny Anderson", pos: "PG", rt: 84 },
-    { n: 14, name: "Billy Owens", pos: "SF", rt: 83 }, { n: 11, name: "Todd Day", pos: "SG", rt: 80 },
-    { n: 12, name: "Chris Gatling", pos: "PF", rt: 79 }, { n: 6, name: "Lee Mayberry", pos: "PG", rt: 77 },
-  ]},
-  { name: "Russia", season: "1994", c: "#0039A6", alt: "#D52B1E", players: [
-    { n: 9, name: "S. Bazarevich", pos: "PG", rt: 86, trait: "connector" }, { n: 10, name: "S. Babkov", pos: "SG", rt: 84 },
-    { n: 14, name: "Sergey Panov", pos: "SF", rt: 81 }, { n: 11, name: "M. Mikhaylov", pos: "C", rt: 80 },
-    { n: 7, name: "A. Fetisov", pos: "PF", rt: 79 }, { n: 15, name: "Vitaly Nosov", pos: "C", rt: 77 },
-  ]},
-  { name: "Yugoslavia", season: "1998", c: "#C6363C", alt: "#2F5FBF", players: [
-    { n: 5, name: "D. Bodiroga", pos: "SF", rt: 92, trait: "mrImportant" }, { n: 10, name: "A. Đorđević", pos: "PG", rt: 86, trait: "flameThrower" },
-    { n: 14, name: "P. Danilović", pos: "SG", rt: 84 }, { n: 11, name: "Ž. Rebrača", pos: "C", rt: 87 },
-    { n: 12, name: "Vlade Divac", pos: "PF", rt: 85 }, { n: 6, name: "S. Obradović", pos: "SG", rt: 81 },
-  ]},
-  { name: "Russia", season: "1998", c: "#D52B1E", alt: "#0039A6", players: [
-    { n: 10, name: "S. Babkov", pos: "SG", rt: 86, trait: "flameThrower" }, { n: 14, name: "Sergey Panov", pos: "SF", rt: 82 },
-    { n: 5, name: "Igor Kudelin", pos: "PG", rt: 81 }, { n: 11, name: "M. Mikhaylov", pos: "C", rt: 80 },
-    { n: 9, name: "V. Tikhonenko", pos: "PF", rt: 79 }, { n: 6, name: "Z. Pashutin", pos: "SG", rt: 76 },
-  ]},
-  { name: "USA", season: "1998", c: "#0A3161", alt: "#B31942", players: [
-    { n: 4, name: "Wendell Alexis", pos: "SF", rt: 82 }, { n: 11, name: "Trajan Langdon", pos: "SG", rt: 80 },
-    { n: 15, name: "Brad Miller", pos: "C", rt: 81, stretch: true }, { n: 7, name: "Jimmy King", pos: "PG", rt: 77 },
-    { n: 9, name: "Gerard King", pos: "PF", rt: 78 }, { n: 12, name: "Jason Sasser", pos: "SF", rt: 76 },
-  ]},
-];
-
-/* 1992 Olympic "Dream Team" — scraped from Wikipedia roster; bonus opponent only */
-const DREAM_TEAM_ROUND = "FACE THE DREAM TEAM";
-const DREAM_TEAM = {
-  name: "DREAM TEAM",
-  season: "1992",
-  c: "#B31942",
-  alt: "#FFD700",
-  players: [
-    { n: 14, name: "Magic Johnson", pos: "PG", rt: 97 },
-    { n: 9, name: "Michael Jordan", pos: "SG", rt: 99, trait: "fibaLegend" },
-    { n: 8, name: "Scottie Pippen", pos: "SF", rt: 96 },
-    { n: 4, name: "Charles Barkley", pos: "PF", rt: 96 },
-    { n: 5, name: "David Robinson", pos: "C", rt: 96 },
-    { n: 7, name: "Larry Bird", pos: "SF", rt: 97 },
-  ],
-};
-
-const OPPONENTS = [...TEAMS, DREAM_TEAM];
-const isDreamGame = (g) => g.round === DREAM_TEAM_ROUND;
-
-const SLOTS = ["PG", "SG", "SF", "PF", "C"];
-const STYLES = [
-  { id: "run", label: "RUN & GUN", desc: "Fast pace, big scores — both ways",
-    tip: "Great for guards — push the tempo, hunt transition buckets, live with the open rim",
-    off: 6, def: -4, pace: 14 },
-  { id: "bal", label: "BALANCED", desc: "Steady on both ends",
-    tip: "No extremes — steady offense and defense, fits any five you roll",
-    off: 0, def: 0, pace: 0 },
-  { id: "lock", label: "LOCKDOWN", desc: "Slow it down, strangle them",
-    tip: "Built for bigs — grind the pace, wall off the paint, win ugly",
-    off: -3, def: 6, pace: -12 },
-];
-const ROUNDS = ["GROUP GAME 1", "GROUP GAME 2", "GROUP GAME 3", "2ND ROUND — GAME 1", "2ND ROUND — GAME 2", "QUARTERFINAL", "SEMIFINAL", "THE FINAL"];
-
-const TEAM_INDEX = Object.fromEntries(OPPONENTS.map((t, i) => [`${t.name}|${t.season}`, i]));
 
 function lineupPlayerRef(lineup, slot) {
   const p = lineup[slot];
@@ -528,39 +140,6 @@ function readShortIdFromUrl() {
   return id && /^[A-Za-z0-9_-]{4,16}$/.test(id) ? id : null;
 }
 
-function nationSlug(name) {
-  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-function nationsFromTeams() {
-  const map = new Map();
-  for (const t of TEAMS) {
-    if (!map.has(t.name)) map.set(t.name, []);
-    map.get(t.name).push(t);
-  }
-  return [...map.entries()]
-    .map(([name, squads]) => ({
-      name,
-      slug: nationSlug(name),
-      c: squads[0].c,
-      alt: squads[0].alt,
-      squads: [...squads].sort((a, b) => Number(b.season) - Number(a.season)),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-const NATIONS_ARCHIVE = nationsFromTeams();
-const ARCHIVE_STATS = {
-  nations: NATIONS_ARCHIVE.length,
-  squads: TEAMS.length,
-  players: TEAMS.reduce((s, t) => s + t.players.length, 0),
-  traits: TEAMS.reduce((s, t) => s + t.players.filter((p) => p.trait || p.traits?.length).length, 0),
-  years: (() => {
-    const ys = [...new Set(TEAMS.map((t) => t.season))].sort();
-    return { first: ys[0], last: ys[ys.length - 1], count: ys.length };
-  })(),
-};
-
 function readRoomFromUrl() {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
@@ -598,12 +177,6 @@ function readDailyFromUrl() {
 
 const shuffle = (a, rand = Math.random) => shuffleWith(a, rand);
 
-function resolveTeamRef(ref) {
-  if (!ref?.name || !ref?.season) return null;
-  if (ref.name === DREAM_TEAM.name && ref.season === DREAM_TEAM.season) return DREAM_TEAM;
-  return TEAMS.find((t) => t.name === ref.name && t.season === ref.season) || null;
-}
-
 /* 2K-style rating gem tiers */
 const tier = (rt) =>
   rt >= 95 ? { bg: "linear-gradient(160deg,#ffd1f4,#f368e0 60%,#c93bbf)", fg: "#3c0836", name: "PINK DIAMOND" } :
@@ -616,595 +189,6 @@ const tier = (rt) =>
 
 
 /* ============ SIMULATION ============ */
-function teamRating(team) { return team.players.slice(0, 5).reduce((s, p) => s + p.rt, 0) / 5; }
-
-function simGame(myRt, style, opp, roundIdx, rand = Math.random) {
-  const oppRt = teamRating(opp) - 4 + rand() * 4 + roundIdx * 0.8;
-  const base = 86 + style.pace;
-  const diff = (myRt + style.off - oppRt) * 1.15;
-  const noise = () => (rand() - 0.5) * 22;
-  let my = Math.round(base + diff / 2 + style.off + noise());
-  let op = Math.round(base - diff / 2 - style.def + noise());
-  my = Math.max(58, my); op = Math.max(58, op);
-  return { my, op, opp, myQ: splitQ(my, rand), opQ: splitQ(op, rand) };
-}
-
-/* FIBA overtime: 5 minutes per period until someone leads */
-function simOvertimePeriod(myRt, style, oppRt, rand = Math.random) {
-  const diff = (myRt + style.off - oppRt) * 0.7;
-  const noise = () => (rand() - 0.5) * 10;
-  const myOT = Math.max(0, Math.round(11 + diff / 4 + noise()));
-  const opOT = Math.max(0, Math.round(11 - diff / 4 + noise()));
-  return { myOT, opOT };
-}
-
-function resolveOvertime(my, op, myRt, style, oppRt, rand = Math.random) {
-  const otMy = [];
-  const otOp = [];
-  let periods = 0;
-  while (my === op && periods < 8) {
-    periods++;
-    const { myOT, opOT } = simOvertimePeriod(myRt, style, oppRt, rand);
-    otMy.push(myOT);
-    otOp.push(opOT);
-    my += myOT;
-    op += opOT;
-  }
-  if (my === op) my += rand() > 0.5 ? 2 : 1; // safety after 8 OTs
-  return { my, op, otMy, otOp, otPeriods: periods };
-}
-
-const splitQ = (tot, rand = Math.random) => {
-  let qs = [0, 0, 0, 0].map(() => 0.2 + rand());
-  const s = qs.reduce((a, b) => a + b, 0);
-  qs = qs.map((q) => Math.round((q / s) * tot));
-  qs[3] += tot - qs.reduce((a, b) => a + b, 0);
-  return qs;
-};
-
-const qSum = (qs) => qs.reduce((a, b) => a + b, 0);
-const QN = ["Q1", "Q2", "Q3", "Q4"];
-
-/* shift pts into/out of specific quarters; total score changes by delta sum */
-function patchQ(qs, patches) {
-  const out = [...qs];
-  patches.forEach(({ q, d }) => { out[q] = Math.max(0, out[q] + d); });
-  return out;
-}
-
-const TRAIT_DEFS = {
-  hackAShaq: {
-    label: "HACK-A-SHAQ", pos: false, chance: 0.30,
-    desc: "Fouled at the line late when ahead",
-    recapNeg: [
-      "{player} was hacked relentlessly late — the free-throw parade cost you.",
-      "With the lead in hand, {player} couldn't stay on the floor — intentional fouls bled the clock and the score.",
-    ],
-  },
-  playoffFade: {
-    label: "PLAYOFF FADE", pos: false, chance: 0.45,
-    desc: "Fades as knockouts wear on",
-    recapNeg: [
-      "{player} went cold down the stretch when it mattered most.",
-      "The deeper the tournament got, the more {player} disappeared from the offense.",
-    ],
-  },
-  heroBall: {
-    label: "HERO BALL", pos: false, chance: 0.15,
-    desc: "Forced midgame shots in tight losses",
-    recapNeg: [
-      "{player} forced the action in the third and the shots wouldn't fall.",
-      "With the game on a knife's edge, {player} went iso-heavy — and paid for it.",
-    ],
-  },
-  brickFactory: {
-    label: "BRICK FACTORY", pos: false, chance: 0.10,
-    desc: "Forces hero shots that don't fall — empty possessions pile up",
-    recapNeg: [
-      "{player} hunted every shot and missed nearly all of them — a brick factory that stalled the whole offense.",
-      "Iso after iso, nothing went down for {player}. The hero-ball heater never arrived; only airballs and empty trips.",
-    ],
-  },
-  isoBlackHole: {
-    label: "ISO BLACK HOLE", pos: false, chance: 0.12,
-    desc: "Ball sticks; offense stalls when he hunts",
-    recapNeg: [
-      "{player} went into iso mode and the ball never came out — the whole offense stalled around him.",
-      "One-on-one after one-on-one: {player} became a black hole and the five stopped moving.",
-    ],
-  },
-  refMeltdown: {
-    label: "REF MELTDOWN", pos: false, chance: 0.10,
-    desc: "Argues with officials — technical energy kills the whole team's rhythm",
-    recapNeg: [
-      "{player} lost it with the refs — a technical tirade that froze the whole five for two quarters.",
-      "After {player}'s meltdown at the officials, the team never got its rhythm back — whistles, dead balls, and cold shots.",
-    ],
-  },
-  goesMissing: {
-    label: "GOES MISSING", pos: false, chance: 0.10,
-    desc: "Vanishes for a full quarter",
-    recapNeg: [
-      "{player} vanished in the {qn} quarter and never got going again.",
-      "For one entire quarter, {player} was a ghost — no rhythm, no impact.",
-    ],
-  },
-  foulTrouble: {
-    label: "FOUL TROUBLE", pos: false, chance: 0.12,
-    desc: "Sits midgame with early fouls",
-    recapNeg: [
-      "{player} picked up fouls early and spent most of the middle quarters on the bench.",
-      "Foul trouble had {player} riding the pine through the {qn} and third — your spacing never recovered.",
-    ],
-  },
-  chaosEnergy: {
-    label: "CHAOS ENERGY", pos: true, chance: 0.12,
-    desc: "Midgame Euro-step burst",
-    recapPos: [
-      "{player} flipped the game with a chaotic third-quarter burst — Euro-steps, and-ones, pure mayhem.",
-      "Out of nowhere, {player} turned the third into a highlight reel and the lead swung.",
-    ],
-  },
-  fibaLegend: {
-    label: "FIBA LEGEND", pos: true, chance: 0.15,
-    desc: "Sets the tone in Q1",
-    recapPos: [
-      "{player} set the tone from the opening tip — a first quarter that put {oppN} on their heels.",
-    ],
-  },
-  unicorn: {
-    label: "UNICORN", pos: true, chance: 0.18,
-    desc: "Stretch spacing in the middle quarters",
-    recapPos: [
-      "{player} stretched the floor in the middle quarters — impossible to guard at that size.",
-      "The unicorn spacing from {player} opened everything up in the second and third.",
-    ],
-  },
-  pointGame42: {
-    label: "42-POINT GAME", pos: true, chance: 0.15,
-    desc: "Dominates weaker opponents",
-    recapPos: [
-      "{player} treated this one like a personal scoring record — buckets in every quarter.",
-      "Against overmatched opposition, {player} was unstoppable from start to finish.",
-    ],
-  },
-  goldMedalDna: {
-    label: "GOLD MEDAL DNA", pos: true, chance: 0.12,
-    desc: "Steady scoring every night",
-    recapPos: [
-      "{player} delivered the steady, winning production that championship teams need.",
-    ],
-  },
-  flameThrower: {
-    label: "FLAME THROWER", pos: true, chance: 0.08,
-    desc: "Explosive random quarter",
-    recapPos: [
-      "{player} caught fire in the {qn} quarter — a solo burst that swung the whole game.",
-      "One quarter, one player: {player} couldn't miss in the {qn} and the gym felt it.",
-    ],
-  },
-  secondHalfBeast: {
-    label: "SECOND HALF BEAST", pos: true, chance: 0.20,
-    desc: "Rally when trailing at halftime",
-    recapPos: [
-      "{player} took over after halftime and dragged your five back into it.",
-      "Down at the break, {player} flipped the script in the second half — pure force of will.",
-    ],
-  },
-  elCapitan: {
-    label: "EL CAPITÁN", pos: true, chance: 0.15,
-    desc: "Clutch fourth quarter when game is close through three",
-    recapPos: [
-      "{player} took over in the fourth — veteran poise when the game hung in the balance.",
-      "With everything on the line, {player} closed it out like a captain should.",
-    ],
-  },
-  mrImportant: {
-    label: "MR. IMPORTANT", pos: true, chance: 0.12,
-    desc: "Late-game FIBA closer",
-    recapPos: [
-      "{player} did what he always does in FIBA — showed up when the lights got brightest.",
-      "The fourth quarter belonged to {player} — cold-blooded, inevitable, Mr. Important.",
-    ],
-  },
-  greatWall: {
-    label: "GREAT WALL", pos: true, chance: 0.12,
-    desc: "Early paint dominance",
-    recapPos: [
-      "{player} walled off the paint early — {oppN} had no answer inside in the first half.",
-      "From the opening tip, {player} owned the rim — a Great Wall nobody could breach.",
-    ],
-  },
-  theRussian: {
-    label: "THE RUSSIAN", pos: true, chance: 0.15,
-    desc: "Two-way lockdown midgame",
-    recapPos: [
-      "{player} did The Russian thing — blocks, help D, and quiet points that put {oppN} in a vice.",
-      "Two-way hell: {player} erased the first half for {oppN} while still finding buckets himself.",
-    ],
-  },
-  twoWayTerror: {
-    label: "TWO-WAY TERROR", pos: true, chance: 0.15,
-    desc: "Two-way lockdown midgame",
-    recapPos: [
-      "{player} was a two-way terror — paint dominance and quiet scoring that put {oppN} in a vice.",
-      "Both ends: {player} erased the first half for {oppN} while still finding buckets himself.",
-    ],
-  },
-  connector: {
-    label: "THE CONNECTOR", pos: true, chance: 0.14,
-    desc: "Glue-guy facilitation all game",
-    recapPos: [
-      "{player} never forced it — just connected every quarter and made the five look smarter.",
-      "The Connector effect: {player} kept the offense humming from tip to horn.",
-    ],
-  },
-  risingSun: {
-    label: "RISING SUN", pos: true, chance: 0.08,
-    desc: "Quiet midrange takeover in Q3",
-    recapPos: [
-      "{player} rose in the third with that quiet midrange — {oppN} had no answer.",
-      "One silent storm in Q3: {player} kept rising until the lead flipped.",
-    ],
-  },
-  theTower: {
-    label: "THE TOWER", pos: true, chance: 0.16,
-    desc: "Stretch-five punch early and late",
-    recapPos: [
-      "{player} was The Tower — paint early, stretch threes later, impossible size for {oppN}.",
-      "From the rim to the arc, {player} owned the vertical game and cracked the defense open.",
-    ],
-  },
-  glassKnee: {
-    label: "GLASS KNEE", pos: false, chance: 0.12,
-    desc: "Midgame breakdown from knee issues",
-    recapNeg: [
-      "{player} couldn't stay on the floor through the middle quarters — the knee just wasn't right.",
-      "The burst was still there, but {player}'s knee gave out in the second and third — minutes evaporated.",
-    ],
-  },
-  hotHead: {
-    label: "HOT HEAD", pos: false, chance: 0.15,
-    desc: "Technical foul derails the third quarter",
-    recapNeg: [
-      "{player} lost it in the third — a tech foul and the whole rhythm fell apart.",
-      "One bad decision cost {player} in the third — ejection energy without the ejection, and the run died.",
-    ],
-  },
-  flopCity: {
-    label: "FLOP CITY", pos: false, chance: 0.18,
-    desc: "Flopping kills midgame rhythm",
-    recapNeg: [
-      "{player} spent the middle quarters drawing whistles and killing the flow — nothing ever got in rhythm.",
-      "Every drive ended at the ref's whistle — {player}'s flopping turned the second and third into stop-start chaos.",
-    ],
-  },
-};
-
-const SIGNIFICANT_TRAIT_DELTA = 5;
-const rollTrait = (chance, rand = Math.random) => rand() < chance;
-const traitChance = (p, def) =>
-  typeof p.traitChance === "number" ? p.traitChance : def.chance;
-
-function playerTraits(p) {
-  if (!p) return [];
-  if (Array.isArray(p.traits) && p.traits.length) {
-    return p.traits.filter((id) => TRAIT_DEFS[id]);
-  }
-  return p.trait && TRAIT_DEFS[p.trait] ? [p.trait] : [];
-}
-
-function hasTrait(p, id) {
-  return playerTraits(p).includes(id);
-}
-
-function applyLineupTraits(lineup, myQ, opQ, ctx, rand = Math.random) {
-  const fired = [];
-  const add = (player, id, q, delta, note) => {
-    if (!delta) return;
-    fired.push({ player: player.name, trait: id, label: TRAIT_DEFS[id].label, pos: TRAIT_DEFS[id].pos, q, delta, note });
-  };
-
-  let qs = [...myQ];
-  let ops = [...opQ];
-  const players = lineup.filter(Boolean);
-
-  for (const p of players) {
-    for (const id of playerTraits(p)) {
-    const def = TRAIT_DEFS[id];
-    const chance = traitChance(p, def);
-
-    if (id === "fibaLegend" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 0, d: 3 }]);
-      add(p, id, 0, 3, "Opened hot in Q1");
-    }
-    if (id === "goldMedalDna" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 0, d: 2 }, { q: 2, d: 1 }]);
-      add(p, id, 0, 3, "Steady +3 across the game");
-    }
-    if (id === "chaosEnergy" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 2, d: 6 }]);
-      add(p, id, 2, 6, "Midgame chaos in Q3");
-    }
-    if (id === "flameThrower" && rollTrait(chance, rand)) {
-      const q = Math.floor(rand() * 4);
-      qs = patchQ(qs, [{ q, d: 10 }]);
-      add(p, id, q, 10, `Erupted in ${QN[q]}`);
-    }
-    if (id === "unicorn" && ctx.style.id === "bal" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: 3 }, { q: 2, d: 2 }]);
-      add(p, id, 1, 5, "Unicorn spacing Q2–Q3");
-    }
-    if (id === "pointGame42" && ctx.myRt - ctx.oppRt >= 4 && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 0, d: 2 }, { q: 1, d: 2 }, { q: 2, d: 2 }, { q: 3, d: 1 }]);
-      add(p, id, 0, 7, "Full-game dominance vs weaker foe");
-    }
-    if (id === "secondHalfBeast" && qs[0] + qs[1] < ops[0] + ops[1] && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 2, d: 3 }, { q: 3, d: 3 }]);
-      add(p, id, 2, 6, "Second-half rally");
-    }
-    if (id === "playoffFade" && ctx.gi >= 5 && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: -2 }, { q: 2, d: -2 }, { q: 3, d: -3 }]);
-      add(p, id, 2, -7, "Knockout fade Q2–Q4");
-    }
-    if (id === "foulTrouble" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -3 }]);
-      add(p, id, 1, -6, "Foul trouble Q2–Q3");
-    }
-    if (id === "goesMissing" && rollTrait(chance, rand)) {
-      const q = Math.floor(rand() * 4);
-      const lost = qs[q];
-      if (lost > 0) {
-        qs = patchQ(qs, [{ q, d: -lost }]);
-        add(p, id, q, -lost, `No-show in ${QN[q]}`);
-      }
-    }
-    if (id === "mrImportant" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 2, d: 4 }, { q: 3, d: 3 }]);
-      add(p, id, 2, 7, "Mr. Important Q3–Q4");
-    }
-    if (id === "greatWall" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 1, d: 3 }]);
-      add(p, id, 0, 6, "Great Wall Q1–Q2");
-    }
-    if ((id === "theRussian" || id === "twoWayTerror") && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: 3 }]);
-      ops = patchQ(ops, [{ q: 0, d: -2 }, { q: 1, d: -2 }]);
-      add(p, id, 1, 7, id === "theRussian" ? "The Russian two-way Q1–Q2" : "Two-way terror Q1–Q2");
-    }
-    if (id === "connector" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 0, d: 1 }, { q: 1, d: 1 }, { q: 2, d: 1 }, { q: 3, d: 1 }]);
-      add(p, id, 0, 4, "Connector glue all four");
-    }
-    if (id === "risingSun" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 2, d: 6 }]);
-      add(p, id, 2, 6, "Rising Sun Q3");
-    }
-    if (id === "theTower" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 0, d: 3 }, { q: 2, d: 3 }]);
-      add(p, id, 0, 6, "The Tower Q1 + Q3");
-    }
-    if (id === "glassKnee" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -3 }]);
-      add(p, id, 1, -6, "Glass knee Q2–Q3");
-    }
-    if (id === "hotHead" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 2, d: -5 }]);
-      add(p, id, 2, -5, "Hot head Q3");
-    }
-    if (id === "flopCity" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -2 }]);
-      add(p, id, 1, -5, "Flop city Q2–Q3");
-    }
-    if (id === "brickFactory" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -6 }, { q: 3, d: -3 }]);
-      add(p, id, 2, -12, "Brick factory — hero shots clank");
-    }
-    if (id === "isoBlackHole" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: -3 }, { q: 2, d: -4 }]);
-      add(p, id, 2, -7, "Iso black hole — ball stuck Q2–Q3");
-    }
-    if (id === "refMeltdown" && rollTrait(chance, rand)) {
-      qs = patchQ(qs, [{ q: 1, d: -4 }, { q: 2, d: -4 }, { q: 3, d: -2 }]);
-      ops = patchQ(ops, [{ q: 1, d: 2 }]);
-      add(p, id, 1, -12, "Ref meltdown — whole team loses it");
-    }
-    if (id === "elCapitan") {
-      const through3 = myQ[0] + myQ[1] + myQ[2];
-      const opThrough3 = ops[0] + ops[1] + ops[2];
-      if (Math.abs(through3 - opThrough3) <= 6 && rollTrait(chance, rand)) {
-        qs = patchQ(qs, [{ q: 3, d: 6 }]);
-        add(p, id, 3, 6, "El Capitán Q4");
-      }
-    }
-    }
-  }
-
-  // conditional traits (need score state)
-  let my = qSum(qs);
-  let op = qSum(ops);
-
-  for (const p of players) {
-    if (hasTrait(p, "hackAShaq") && my > op && rollTrait(traitChance(p, TRAIT_DEFS.hackAShaq), rand)) {
-      qs = patchQ(qs, [{ q: 2, d: -3 }, { q: 3, d: -3 }]);
-      add(p, "hackAShaq", 3, -6, "Hack-a-Shaq at the line Q3–Q4");
-      my = qSum(qs);
-    }
-  }
-
-  my = qSum(qs);
-  op = qSum(ops);
-  if (my < op && op - my <= 5) {
-    for (const p of players) {
-      if (hasTrait(p, "heroBall") && rollTrait(traitChance(p, TRAIT_DEFS.heroBall), rand)) {
-        qs = patchQ(qs, [{ q: 2, d: -5 }]);
-        add(p, "heroBall", 2, -5, "Hero-ball Q3 in a tight loss");
-        my = qSum(qs);
-      }
-    }
-  }
-
-  return { myQ: qs, opQ: ops, my, fired };
-}
-
-function simGameWithTraits(lineup, myRt, style, opp, gi, gamesPlayed, rand = Math.random) {
-  const fitStyle = fittedStyle(style, lineup);
-  const base = simGame(myRt, fitStyle, opp, gi, rand);
-  const ctx = { gi, style: fitStyle, myRt, oppRt: teamRating(opp), gamesPlayed };
-  const { myQ, opQ, my, fired } = applyLineupTraits(lineup, base.myQ, base.opQ, ctx, rand);
-  let finalMy = my;
-  let finalOp = qSum(opQ);
-  const regMy = finalMy;
-  const regOp = finalOp;
-  let otMy = [];
-  let otOp = [];
-  let otPeriods = 0;
-  if (finalMy === finalOp) {
-    const ot = resolveOvertime(finalMy, finalOp, myRt, fitStyle, ctx.oppRt, rand);
-    finalMy = ot.my;
-    finalOp = ot.op;
-    otMy = ot.otMy;
-    otOp = ot.otOp;
-    otPeriods = ot.otPeriods;
-  }
-  return { ...base, my: finalMy, op: finalOp, myQ, opQ, regMy, regOp, otMy, otOp, otPeriods, traitFired: fired };
-}
-
-function boxScore(lineup, total, rand = Math.random) {
-  const w = lineup.map((p) => Math.pow(p.rt - 65, 2) * (0.7 + rand() * 0.6));
-  const s = w.reduce((a, b) => a + b, 0);
-  const pts = w.map((x) => Math.round((x / s) * total * 0.86));
-  return lineup.map((p, i) => ({ ...p, pts: pts[i] })).sort((a, b) => b.pts - a.pts);
-}
-
-/** Head-to-head Cup Final: two drafted fives, one shared rand stream. */
-function simCupFinal(lineupA, styleA, lineupB, styleB, rand = Math.random) {
-  const luA = SLOTS.map((s) => lineupA[s]).filter(Boolean);
-  const luB = SLOTS.map((s) => lineupB[s]).filter(Boolean);
-  const rtA = luA.reduce((s, p) => s + p.rt, 0) / Math.max(luA.length, 1);
-  const rtB = luB.reduce((s, p) => s + p.rt, 0) / Math.max(luB.length, 1);
-  const fitA = fittedStyle(styleA, lineupA);
-  const fitB = fittedStyle(styleB, lineupB);
-  const oppB = { name: "PLAYER 2", season: "0000", c: "#23b4e2", players: luB };
-  const base = simGame(rtA, fitA, oppB, 7, rand);
-  const ctxA = { gi: 7, style: fitA, myRt: rtA, oppRt: rtB, gamesPlayed: 0 };
-  let { myQ, opQ, fired: firedA } = applyLineupTraits(luA, base.myQ, base.opQ, ctxA, rand);
-  // Apply B's traits from B's perspective (their offense = our opp quarters).
-  const ctxB = { gi: 7, style: fitB, myRt: rtB, oppRt: rtA, gamesPlayed: 0 };
-  const flipped = applyLineupTraits(luB, opQ, myQ, ctxB, rand);
-  myQ = flipped.opQ;
-  opQ = flipped.myQ;
-  let finalMy = qSum(myQ);
-  let finalOp = qSum(opQ);
-  let otMy = [];
-  let otOp = [];
-  let otPeriods = 0;
-  if (finalMy === finalOp) {
-    const ot = resolveOvertime(finalMy, finalOp, rtA, fitA, rtB, rand);
-    finalMy = ot.my;
-    finalOp = ot.op;
-    otMy = ot.otMy;
-    otOp = ot.otOp;
-    otPeriods = ot.otPeriods;
-  }
-  const boxA = boxScore(luA, finalMy, rand);
-  const boxB = boxScore(luB, finalOp, rand);
-  return {
-    my: finalMy, op: finalOp, myQ, opQ, otMy, otOp, otPeriods,
-    boxA, boxB, traitFired: firedA, firedB: flipped.fired,
-    rtA: Math.round(rtA), rtB: Math.round(rtB),
-  };
-}
-
-/* ---- play-by-play generation for animated sims ---- */
-const rndT = (a) => a[Math.floor(Math.random() * a.length)];
-
-/** Guards/wings/forwards can splash; centers only if stretch-flagged or stretch-scoring traits. */
-function canSplashThree(p) {
-  if (!p) return false;
-  if (p.pos === "PG" || p.pos === "SG" || p.pos === "SF" || p.pos === "PF") return true;
-  if (p.stretch) return true;
-  return hasTrait(p, "unicorn") || hasTrait(p, "theTower") || hasTrait(p, "flameThrower");
-}
-
-/** Traditional paint centers (Shaq, Yao, Gobert…) — not stretch fives. */
-function isPaintBig(p) {
-  return !!p && p.pos === "C" && !canSplashThree(p);
-}
-
-/** Offense-first / liability guards — soft on Lockdown schemes. */
-const SOFT_GUARD_TRAITS = new Set([
-  "flameThrower", "playoffFade", "goesMissing", "heroBall", "chaosEnergy", "refMeltdown", "brickFactory",
-]);
-
-function isSoftGuard(p) {
-  return !!p && (p.pos === "PG" || p.pos === "SG")
-    && playerTraits(p).some((id) => SOFT_GUARD_TRAITS.has(id));
-}
-
-function lineupPlayers(lineup) {
-  if (!lineup) return [];
-  if (Array.isArray(lineup)) return lineup.filter(Boolean);
-  return SLOTS.map((s) => lineup[s]).filter(Boolean);
-}
-
-function lineupCenter(lineup) {
-  if (!lineup) return null;
-  if (Array.isArray(lineup)) return lineup.find((p) => p?.pos === "C") || null;
-  return lineup.C || null;
-}
-
-function topSoftGuard(lineup) {
-  return lineupPlayers(lineup)
-    .filter(isSoftGuard)
-    .sort((a, b) => (b.rt || 0) - (a.rt || 0))[0] || null;
-}
-
-/**
- * Style fit:
- * - Paint bigs drag Run & Gun, boost Lockdown.
- * - Soft guards blunt Lockdown (small penalty).
- */
-function fittedStyle(style, lineup) {
-  let s = { ...style };
-  const paint = isPaintBig(lineupCenter(lineup));
-  const softCount = lineupPlayers(lineup).filter(isSoftGuard).length;
-
-  if (paint) {
-    if (s.id === "run") {
-      s = { ...s, off: s.off - 3, def: s.def - 1, pace: Math.round(s.pace * 0.5) };
-    } else if (s.id === "lock") {
-      s = { ...s, def: s.def + 2 };
-    }
-  }
-
-  if (softCount > 0 && s.id === "lock") {
-    s = { ...s, def: s.def - (softCount >= 2 ? 3 : 2) };
-  }
-
-  return s;
-}
-
-/** Prefer poor-fit warnings over good-fit praise when both apply. */
-function styleFitHint(style, lineup) {
-  const center = lineupCenter(lineup);
-  const soft = topSoftGuard(lineup);
-
-  if (style.id === "run" && isPaintBig(center)) {
-    return { tone: "poor", label: "POOR FIT", detail: `${center.name} · halfcourt paint` };
-  }
-  if (style.id === "lock" && soft) {
-    return { tone: "poor", label: "POOR FIT", detail: `${soft.name} · needs space` };
-  }
-  if (style.id === "lock" && isPaintBig(center)) {
-    return { tone: "good", label: "GOOD FIT", detail: `${center.name} · anchors the paint` };
-  }
-  if (style.id === "run" && center?.pos === "C" && canSplashThree(center)) {
-    return { tone: "good", label: "GOOD FIT", detail: `${center.name} · stretches the break` };
-  }
-  return null;
-}
-
 function buildEvents(g, box, opp) {
   const buckets = (total) => {
     const b = []; let t = total;
@@ -1609,6 +593,12 @@ const css = `
 .panel{background:linear-gradient(180deg,#141926 0%,#10141f 100%);
   border:1px solid #232b3d;border-top:2px solid #2c3650;
   clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);}
+.boardRow{background:transparent;border:0;font:inherit;color:inherit;cursor:pointer;}
+.boardRow:hover{background:rgba(148,163,184,.07);}
+.cpuRow{background:rgba(148,163,184,.04);border:0;font:inherit;color:inherit;cursor:pointer;}
+.cpuRow:hover{background:rgba(148,163,184,.09);}
+.cpuBadge{display:inline-block;font-size:9px;letter-spacing:.14em;padding:2px 6px;margin-right:6px;
+  border:1px solid #3d4a66;color:#8b9bb3;background:#0e1420;vertical-align:middle;}
 .chip{clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);}
 .skew{transform:skewX(-8deg);}
 .unskew{transform:skewX(8deg);display:inline-block;}
@@ -2076,6 +1066,12 @@ export default function PerfectSweep() {
   const [dailyLbCount, setDailyLbCount] = useState(0);
   const [dailyLbLoading, setDailyLbLoading] = useState(false);
   const [dailyLbError, setDailyLbError] = useState(null);
+  const [dailyCpuEnabled, setDailyCpuEnabled] = useState(true);
+  const [dailyCpuTargetN, setDailyCpuTargetN] = useState(CPU_TARGET_N_DEFAULT);
+  const [dailyBoardNow, setDailyBoardNow] = useState(() => Date.now());
+  const [boardInspect, setBoardInspect] = useState(null);
+  const [boardInspectLoading, setBoardInspectLoading] = useState(false);
+  const boardInspectGen = useRef(0);
   const [dailySubmitted, setDailySubmitted] = useState(false);
   const [showDailySubmit, setShowDailySubmit] = useState(false);
   const [dailyToast, setDailyToast] = useState(null);
@@ -2253,20 +1249,21 @@ export default function PerfectSweep() {
     if (isCupMode) return;
     if (mode === "daily" && dailyStatus === "done") return;
     // real FIBA system: group of 4 → 2nd round group (carry-over + 2 new games) → QF, SF, Final = 8 games
-    // knockouts (slots 5-7) draw from above-average teams only, sorted so the Final tends to be the toughest
-    const gRand = mode === "daily" ? rng(dailyDay, "gauntlet") : Math.random;
-    const avgRt = TEAMS.reduce((s, t) => s + teamRating(t), 0) / TEAMS.length;
-    const elite = TEAMS.filter((t) => teamRating(t) >= avgRt);
-    const knockouts = shuffle(elite, gRand).slice(0, 3).sort((a, b) => teamRating(a) - teamRating(b));
-    const rest = shuffle(TEAMS.filter((t) => !knockouts.includes(t)), gRand).slice(0, 5);
-    const g8 = [...rest, ...knockouts]; // 0-2 group rivals · 3-4 second-round opponents · 5-7 knockouts
+    let g8;
+    let pairs;
+    if (mode === "daily") {
+      const bracket = buildDailyBracket(dailyDay);
+      g8 = bracket.gauntlet;
+      pairs = bracket.rivalGames;
+    } else {
+      g8 = buildGauntlet(Math.random);
+      const rivals = g8.slice(0, 3);
+      pairs = [[0, 1], [0, 2], [1, 2]].map(([a, b]) => {
+        const r = neutralGame(rivals[a], rivals[b], Math.random);
+        return { a, b, sa: r.sa, sb: r.sb };
+      });
+    }
     setGauntlet(g8);
-    const rivals = g8.slice(0, 3);
-    const pairs = [[0, 1], [0, 2], [1, 2]].map(([a, b]) => {
-      const nRand = mode === "daily" ? rng(dailyDay, "neutral", "g", a, b) : Math.random;
-      const r = neutralGame(rivals[a], rivals[b], nRand);
-      return { a, b, sa: r.sa, sb: r.sb };
-    });
     setRivalGames(pairs);
     setGroupOut(false); setR2(null); setR2Out(false);
     setGames([]); setGi(0); setScreen("sim");
@@ -3326,6 +2323,9 @@ export default function PerfectSweep() {
           if (cancelled) return;
           setDailyLbEntries(Array.isArray(data.entries) ? data.entries : []);
           setDailyLbCount(Number(data.count) || 0);
+          setDailyCpuEnabled(data.cpuDrafters !== false);
+          const n = Math.round(Number(data.cpuTargetN));
+          setDailyCpuTargetN(Number.isFinite(n) && n >= 1 ? n : CPU_TARGET_N_DEFAULT);
         })
         .catch((err) => {
           if (!cancelled) setDailyLbError(err.message || "Standings unavailable.");
@@ -3355,6 +2355,77 @@ export default function PerfectSweep() {
     }
     return () => { cancelled = true; };
   }, [screen, dailyBoardTab]);
+
+  useEffect(() => {
+    if (!boardInspect) return undefined;
+    const onKey = (ev) => {
+      if (ev.key !== "Escape") return;
+      boardInspectGen.current += 1;
+      setBoardInspect(null);
+      setBoardInspectLoading(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [boardInspect]);
+
+  useEffect(() => {
+    if (screen !== "leaderboard" || !dailyBoardTab) return undefined;
+    setDailyBoardNow(Date.now());
+    const id = setInterval(() => setDailyBoardNow(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, [screen, dailyBoardTab]);
+
+  const mixedDailyBoard = useMemo(() => {
+    if (!dailyBoardTab) return [];
+    const day = utcDayKey();
+    const runs = dailyCpuEnabled ? cpuRunsForDay(day) : [];
+    return mixDailyBoard(dailyLbEntries, runs, {
+      now: dailyBoardNow,
+      targetN: dailyCpuTargetN,
+      enabled: dailyCpuEnabled,
+    });
+  }, [dailyBoardTab, dailyLbEntries, dailyCpuEnabled, dailyCpuTargetN, dailyBoardNow]);
+
+  const closeBoardInspect = () => {
+    boardInspectGen.current += 1;
+    setBoardInspect(null);
+    setBoardInspectLoading(false);
+  };
+
+  const openBoardInspect = (e) => {
+    if (!e) return;
+    boardInspectGen.current += 1;
+    const gen = boardInspectGen.current;
+    setBoardInspect(e);
+    const needsFetch = !e.cpu && e.runId && !e.lineup;
+    if (!needsFetch) {
+      setBoardInspectLoading(false);
+      return;
+    }
+    setBoardInspectLoading(true);
+    fetch(`/api/runs?id=${encodeURIComponent(e.runId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (gen !== boardInspectGen.current) return;
+        const decoded = d?.payload ? decodeRunShare(`?card=${d.payload}`) : null;
+        if (decoded) {
+          setBoardInspect((prev) => (prev && prev.id === e.id ? { ...prev, ...decoded } : prev));
+        }
+        setBoardInspectLoading(false);
+      })
+      .catch(() => {
+        if (gen !== boardInspectGen.current) return;
+        setBoardInspectLoading(false);
+      });
+  };
+
+  const boardInspectStyle = boardInspect?.styleId
+    ? (STYLES.find((s) => s.id === boardInspect.styleId) || null)
+    : null;
+  const boardInspectCountry = boardInspect && !boardInspect.cpu
+    ? countryByCode(boardInspect.country)
+    : null;
+  const boardInspectHasLineup = boardInspect && SLOTS.every((s) => boardInspect.lineup?.[s]);
 
 
 
@@ -3389,6 +2460,129 @@ export default function PerfectSweep() {
               <div className="dsp9 text-lg" style={{ color: dailyStatus === "done" ? "#7ee2a8" : "#f2d27c", fontVariantNumeric: "tabular-nums" }}>
                 {dailyStatus === "done" ? "DONE" : dailyCountdown}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {boardInspect && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center px-4 py-8"
+          style={{ background: "rgba(6,8,14,.72)", backdropFilter: "blur(4px)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="board-inspect-title"
+          onClick={closeBoardInspect}
+        >
+          <div
+            className="panel p-5 w-full max-w-lg pop max-h-[90vh] overflow-auto"
+            style={{ background: "#121826" }}
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="eyebrow mb-1" style={{ color: "#8b9bb3" }}>
+                  {boardInspect.cpu ? (
+                    <><span className="cpuBadge">CPU</span> COACH</>
+                  ) : (
+                    "DAILY ENTRY"
+                  )}
+                </div>
+                <h2 id="board-inspect-title" className="dsp text-2xl" style={{ color: "#EAF0F7" }}>
+                  {boardInspect.cpu
+                    ? String(boardInspect.nick || "").replace(/^CPU · /, "")
+                    : boardInspect.nick}
+                </h2>
+                <div className="text-sm mt-1" style={{ color: "#93a1b5" }}>
+                  {boardInspect.cpu ? (
+                    <>
+                      {boardInspect.wc ? `${boardInspect.wc} · ` : ""}
+                      {boardInspectStyle?.label || "BALANCED"} · {boardInspect.rolls} rolls
+                      {boardInspect.homeNation ? ` · home ${boardInspect.homeNation}` : ""}
+                    </>
+                  ) : (
+                    <>
+                      {boardInspectCountry?.flag ? `${boardInspectCountry.flag} ` : ""}
+                      {boardInspectCountry?.name || boardInspect.country || "Player"}
+                      {boardInspect.rolls != null ? ` · ${boardInspect.rolls} rolls` : ""}
+                    </>
+                  )}
+                </div>
+              </div>
+              <button type="button" onClick={closeBoardInspect} className="skew chip dsp px-3 py-1.5 text-sm btnG shrink-0">
+                <span className="unskew">CLOSE</span>
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+              <div>
+                <div className="dsp9 text-2xl" style={{ color: "#EAF0F7" }}>{boardInspect.w}–{boardInspect.l}</div>
+                <div className="eyebrow" style={{ fontSize: 9 }}>RECORD</div>
+              </div>
+              <div>
+                <div className="dsp9 text-2xl" style={{ color: "#E8465A" }}>{boardInspect.ovr}</div>
+                <div className="eyebrow" style={{ fontSize: 9 }}>OVR</div>
+              </div>
+              <div>
+                <div className="dsp9 text-2xl" style={{ color: "#f2d27c" }}>{boardInspect.efficiency}</div>
+                <div className="eyebrow" style={{ fontSize: 9 }}>EFF</div>
+              </div>
+            </div>
+            {boardInspectHasLineup ? (
+              <div className="grid grid-cols-5 gap-2 mb-4">
+                {SLOTS.map((s) => {
+                  const p = boardInspect.lineup?.[s];
+                  return (
+                    <div key={s} className="p-2 text-center chip"
+                      style={p
+                        ? { background: `linear-gradient(180deg, ${p.tc || "#33405c"}33, #10141f 70%)`, border: `1px solid ${p.tc || "#33405c"}` }
+                        : { border: "1px dashed #33405c", color: "#5f6b7d" }}>
+                      <div className="eyebrow">{s}</div>
+                      {p ? (
+                        <>
+                          <div className="flex justify-center my-1"><Gem rt={p.rt} size={28} /></div>
+                          <div className="dsp leading-tight text-xs" style={{ color: "#fff" }}>{p.name}</div>
+                          <div className="text-[10px]" style={{ color: "#93a1b5" }}>{p.team} '{String(p.season).slice(2)}</div>
+                        </>
+                      ) : <div className="py-4 dsp text-xs">EMPTY</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="panel px-3 py-3 mb-4 text-sm" style={{ color: "#93a1b5" }}>
+                {boardInspectLoading
+                  ? "Loading lineup…"
+                  : boardInspect.runId
+                    ? "Couldn't load this lineup."
+                    : "Lineup wasn't saved with this post."}
+              </div>
+            )}
+            {(boardInspect.margins || []).length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {(boardInspect.margins || []).map((m, i) => (
+                  <span key={i} className="dsp text-sm" style={{ color: m > 0 ? "#7ee2a8" : "#f08a8a" }}>
+                    {m > 0 ? `+${m}` : m}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="text-xs" style={{ color: "#5f6b7d" }}>
+              {(boardInspect.games || []).map((g, i) => (
+                <div key={i} className="flex justify-between gap-2 py-1" style={{ borderTop: "1px solid #1c2333" }}>
+                  <span>{g.round || `GAME ${i + 1}`}</span>
+                  <span style={{ color: g.my > g.op ? "#7ee2a8" : "#f08a8a" }}>
+                    {g.my}–{g.op} vs {g.opp?.name} '{String(g.opp?.season || "").slice(2)}
+                  </span>
+                </div>
+              ))}
+              {boardInspect.groupOut && <div className="mt-2">Out in the group stage.</div>}
+              {boardInspect.r2Out && <div className="mt-2">Out in the 2nd round.</div>}
+              {boardInspect.perfect && boardInspect.cpu && (
+                <div className="mt-2" style={{ color: "#7ee2a8" }}>Perfect sweep — CPU runs never enter the Hall of Fame.</div>
+              )}
+              {boardInspect.perfect && !boardInspect.cpu && (
+                <div className="mt-2" style={{ color: "#7ee2a8" }}>Perfect sweep.</div>
+              )}
             </div>
           </div>
         </div>
@@ -4848,18 +4042,25 @@ export default function PerfectSweep() {
               <div className="mb-5 text-center">
                 <h1 className="dsp9 text-4xl sm:text-5xl" style={{ color: "#EAF0F7", lineHeight: 0.95 }}>DAILY #{dailyNumber(utcDayKey())}</h1>
                 <p className="mt-3 text-sm max-w-lg mx-auto" style={{ color: "#93a1b5" }}>
-                  {formatDayLabel(utcDayKey())} UTC · Ranked by perfect sweep, wins, efficiency, then OVR.
+                  {formatDayLabel(utcDayKey())} UTC · Ranked by perfect sweep, efficiency, wins, then OVR.
                   {dailyLbCount ? ` · ${dailyLbCount} played` : ""}
                 </p>
+                {dailyCpuEnabled && (
+                  <p className="mt-3 text-sm max-w-md mx-auto" style={{ color: "#7d8ba0" }}>
+                    World Cup coaches play the same draw with their usual benches. Beat them, then beat the Dream Team.
+                  </p>
+                )}
               </div>
-              {dailyLbLoading && <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>Loading…</div>}
+              {dailyLbLoading && mixedDailyBoard.length === 0 && (
+                <div className="panel p-6 text-center text-sm" style={{ color: "#93a1b5" }}>Loading…</div>
+              )}
               {!dailyLbLoading && dailyLbError && (
-                <div className="panel p-6 text-center text-sm" style={{ color: "#ff8b98" }}>
+                <div className="panel p-6 text-center text-sm mb-3" style={{ color: "#ff8b98" }}>
                   {dailyLbError}
                   <div className="mt-2" style={{ color: "#93a1b5" }}>Your local result still counts — standings are optional.</div>
                 </div>
               )}
-              {!dailyLbLoading && !dailyLbError && dailyLbEntries.length === 0 && (
+              {!dailyLbLoading && !dailyLbError && mixedDailyBoard.length === 0 && (
                 <div className="panel p-8 text-center">
                   <div className="dsp9 text-2xl" style={{ color: "#EAF0F7" }}>NO ENTRIES YET</div>
                   <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: "#93a1b5" }}>
@@ -4867,7 +4068,7 @@ export default function PerfectSweep() {
                   </p>
                 </div>
               )}
-              {!dailyLbLoading && !dailyLbError && dailyLbEntries.length > 0 && (
+              {mixedDailyBoard.length > 0 && (
                 <div className="panel overflow-hidden">
                   <div className="grid gap-2 px-4 py-2 eyebrow" style={{ gridTemplateColumns: "2.5rem 1fr 3.5rem 3rem 3.5rem", color: "#7d8ba0", borderBottom: "1px solid #232b3d" }}>
                     <span>#</span><span>NICK</span>
@@ -4875,21 +4076,40 @@ export default function PerfectSweep() {
                     <span className="text-right">OVR</span>
                     <span className="text-right">EFF</span>
                   </div>
-                  {dailyLbEntries.map((e) => {
-                    const c = countryByCode(e.country);
+                  {mixedDailyBoard.map((e) => {
+                    const c = e.cpu ? null : countryByCode(e.country);
+                    const nick = e.cpu ? String(e.nick || "").replace(/^CPU · /, "") : e.nick;
+                    const when = e.at ? formatRelativeTime(e.at, dailyBoardNow) : "";
+                    const sub = e.cpu
+                      ? `${when} · tap to inspect`
+                      : `${c?.flag || ""} ${c?.name || e.country || ""}${when ? ` · ${when}` : ""} · tap to inspect`;
                     return (
-                      <div key={e.id || `${e.rank}-${e.nick}`} className="grid gap-2 px-4 py-3 items-center text-sm" style={{ gridTemplateColumns: "2.5rem 1fr 3.5rem 3rem 3.5rem", borderBottom: "1px solid #1a2233" }}>
+                      <button
+                        key={e.id || `${e.rank}-${e.nick}`}
+                        type="button"
+                        onClick={() => openBoardInspect(e)}
+                        aria-label={`Inspect ${nick}`}
+                        className={`grid gap-2 px-4 py-3 items-center text-sm w-full text-left ${e.cpu ? "cpuRow" : "boardRow"}`}
+                        style={{
+                          gridTemplateColumns: "2.5rem 1fr 3.5rem 3rem 3.5rem",
+                          borderBottom: "1px solid #1a2233",
+                          color: "inherit",
+                        }}
+                      >
                         <span className="dsp9" style={{ color: e.rank <= 3 ? "#E8465A" : "#7d8ba0" }}>{e.rank}</span>
                         <span className="min-w-0">
-                          <span className="dsp truncate block" style={{ color: "#EAF0F7" }}>
-                            {e.perfect ? "⭐ " : ""}{e.nick}
+                          <span className="dsp block leading-tight" style={{ color: e.cpu ? "#b7c4d6" : "#EAF0F7" }}>
+                            {e.cpu && <span className="cpuBadge">CPU</span>}
+                            {e.perfect ? "⭐ " : ""}{nick}
                           </span>
-                          <span className="text-[11px]" style={{ color: "#5f6b7d" }}>{c?.flag || ""} {c?.name || e.country}</span>
+                          <span className="text-[11px]" style={{ color: "#5f6b7d" }}>
+                            {sub}
+                          </span>
                         </span>
                         <span className="dsp9 text-right" style={{ color: "#c6d2e3" }}>{e.w}–{e.l}</span>
                         <span className="dsp9 text-right" style={{ color: "#c6d2e3" }}>{e.ovr}</span>
                         <span className="dsp9 text-right" style={{ color: "#f2d27c" }}>{e.efficiency}</span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>

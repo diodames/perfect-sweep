@@ -2,6 +2,7 @@ import { kv } from "@vercel/kv";
 import { randomUUID } from "crypto";
 import { isValidCountry } from "../countries.js";
 import { validateNick } from "../nickValidate.js";
+import { CPU_FLAG_KEY, CPU_N_KEY, CPU_TARGET_N_DEFAULT, compareDailyEntries } from "../daily.js";
 
 const TOP_N = 50;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -25,7 +26,7 @@ function utcToday() {
 }
 
 /**
- * Rank: perfect first, then more wins, then higher efficiency, then higher ovr, then earlier.
+ * Rank: perfect first, then higher efficiency, then more wins, then higher ovr, then earlier.
  * Encoded as a single float for the ZSET (higher = better).
  */
 function rankScore({ perfect, w, efficiency, ovr, atIso }) {
@@ -35,22 +36,22 @@ function rankScore({ perfect, w, efficiency, ovr, atIso }) {
   const eff = Math.max(-50, Math.min(50, Number(efficiency) || 0));
   const o = Math.max(0, Math.min(99, Number(ovr) || 0));
   const wins = Math.max(0, Math.min(9, Number(w) || 0));
-  return (perfect ? 1e12 : 0)
-    + wins * 1e10
-    + (eff + 50) * 1e6
+  return (perfect ? 1e14 : 0)
+    + (eff + 50) * 1e10
+    + wins * 1e6
     + o * 1e3
     + timePart * 999;
 }
 
-function compareDaily(a, b) {
-  if (!!b.perfect !== !!a.perfect) return (b.perfect ? 1 : 0) - (a.perfect ? 1 : 0);
-  if (b.w !== a.w) return b.w - a.w;
-  if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
-  if (b.ovr !== a.ovr) return b.ovr - a.ovr;
-  const tA = a.at ? Date.parse(a.at) : Number.POSITIVE_INFINITY;
-  const tB = b.at ? Date.parse(b.at) : Number.POSITIVE_INFINITY;
-  if (tA !== tB) return tA - tB;
-  return String(a.id).localeCompare(String(b.id));
+function parseMargins(raw) {
+  if (Array.isArray(raw)) return raw.map((m) => Number(m) || 0);
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.map((m) => Number(m) || 0) : [];
+  } catch {
+    return [];
+  }
 }
 
 async function handleGet(req, res) {
@@ -75,6 +76,7 @@ async function handleGet(req, res) {
           perfect: meta.perfect === "1" || meta.perfect === true || meta.perfect === "true",
           ovr: Number(meta.ovr) || 0,
           efficiency: Number(meta.efficiency) || 0,
+          margins: parseMargins(meta.margins),
           runId: meta.runId || null,
           at: meta.at || null,
         });
@@ -93,6 +95,7 @@ async function handleGet(req, res) {
           perfect: meta.perfect === "1" || meta.perfect === true || meta.perfect === "true",
           ovr: Number(meta.ovr) || 0,
           efficiency: Number(meta.efficiency) || 0,
+          margins: parseMargins(meta.margins),
           runId: meta.runId || null,
           at: meta.at || null,
         });
@@ -100,13 +103,25 @@ async function handleGet(req, res) {
     }
   }
 
-  entries.sort(compareDaily);
+  entries.sort(compareDailyEntries);
   const top = entries.slice(0, TOP_N);
   const count = await kv.zcard(scoresKey).catch(() => top.length);
+
+  let cpuDrafters = true;
+  let cpuTargetN = CPU_TARGET_N_DEFAULT;
+  try {
+    const flag = await kv.get(CPU_FLAG_KEY);
+    if (flag === "0" || flag === 0 || flag === false || flag === "false") cpuDrafters = false;
+    const nRaw = await kv.get(CPU_N_KEY);
+    const n = Math.round(Number(nRaw));
+    if (Number.isFinite(n) && n >= 1 && n <= 50) cpuTargetN = n;
+  } catch { /* default on */ }
 
   return res.status(200).json({
     day,
     count: Number(count) || top.length,
+    cpuDrafters,
+    cpuTargetN,
     entries: top.map((e, i) => ({
       rank: i + 1,
       id: e.id,
@@ -117,6 +132,7 @@ async function handleGet(req, res) {
       perfect: e.perfect,
       ovr: e.ovr,
       efficiency: e.efficiency,
+      margins: e.margins,
       runId: e.runId,
       at: e.at,
     })),

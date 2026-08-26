@@ -3,6 +3,11 @@
 export const DAILY_EPOCH = "2026-07-29"; // Daily Challenge #1
 const LS_PREFIX = "ps:daily:";
 
+/** KV keys for CPU drafters. Toggle without a code deploy. Absent = on. */
+export const CPU_FLAG_KEY = "ps:config:cpuDrafters";
+export const CPU_N_KEY = "ps:config:cpuTargetN";
+export const CPU_TARGET_N_DEFAULT = 10;
+
 export function utcDayKey(date = new Date()) {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -118,6 +123,39 @@ export function efficiencyFrom(margins, ovr, dreamMargin = null) {
   if (!ovr) return 0;
   const sum = (margins || []).reduce((a, b) => a + b, 0) + (dreamMargin != null ? dreamMargin : 0);
   return Math.round((sum / ovr) * 100) / 100;
+}
+
+/** Rank: perfect first, then higher efficiency, then more wins, then higher ovr, then earlier. */
+export function compareDailyEntries(a, b) {
+  if (!!b.perfect !== !!a.perfect) return (b.perfect ? 1 : 0) - (a.perfect ? 1 : 0);
+  if (b.efficiency !== a.efficiency) return b.efficiency - a.efficiency;
+  if (b.w !== a.w) return b.w - a.w;
+  if (b.ovr !== a.ovr) return b.ovr - a.ovr;
+  const tA = a.at ? Date.parse(a.at) : Number.POSITIVE_INFINITY;
+  const tB = b.at ? Date.parse(b.at) : Number.POSITIVE_INFINITY;
+  if (tA !== tB) return tA - tB;
+  return String(a.id || "").localeCompare(String(b.id || ""));
+}
+
+export function utcDayAt(day, secondsFromMidnight) {
+  const sec = Math.max(0, Math.min(86399, Math.floor(Number(secondsFromMidnight) || 0)));
+  const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+  const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+  const s = String(sec % 60).padStart(2, "0");
+  return `${day}T${h}:${m}:${s}.000Z`;
+}
+
+export function formatRelativeTime(atIso, now = Date.now()) {
+  const t = Date.parse(atIso);
+  if (!Number.isFinite(t)) return "";
+  const delta = now - t;
+  if (delta < 0) return "soon";
+  const s = Math.floor(delta / 1000);
+  if (s < 45) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  const d = Math.floor(s / 86400);
+  return d === 1 ? "1d ago" : `${d}d ago`;
 }
 
 export function dailyLsKey(day) {
