@@ -189,6 +189,8 @@ const tier = (rt) =>
 
 
 /* ============ SIMULATION ============ */
+const rndT = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
 function buildEvents(g, box, opp) {
   const buckets = (total) => {
     const b = []; let t = total;

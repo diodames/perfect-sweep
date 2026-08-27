@@ -60,6 +60,15 @@ function scoreRt(p) {
   return p.rt;
 }
 
+function scoreCoachK(p) {
+  let s = p.rt;
+  for (const id of playerTraits(p)) {
+    if (DEF_TRAITS.has(id)) s += 2;
+    if (DEF_PENALTY.has(id)) s -= 2;
+  }
+  return s;
+}
+
 function scoreScarce(p, eligible, invert = false) {
   const counts = {};
   for (const e of eligible) counts[e.pos] = (counts[e.pos] || 0) + 1;
@@ -105,6 +114,7 @@ function rankEligible(eligible, team, bot, homeNation) {
   const scoreOf = (p) => {
     switch (bot.heuristic) {
       case "optimizer": return scoreRt(p);
+      case "coachk": return scoreCoachK(p);
       case "filler": return scoreScarce(p, tagged, !!bot.invertSlots);
       case "star": return scoreRt(p);
       case "wall": return scoreWall(p);
@@ -257,11 +267,11 @@ export function draftWithBot(day, bot, opts = {}) {
 
 /** World Cup national-team coaches, matched to how each bot drafts. Ids stay stable for the date seed. */
 export const PERSISTENT_BOTS = [
-  { id: "optimizer", name: "Mike Krzyzewski", wc: "USA 2006–14", heuristic: "optimizer", styleId: "bal", swap: "never", blunder: 0.05, persistent: true },
+  { id: "optimizer", name: "Mike Krzyzewski", wc: "USA 2006–14", heuristic: "coachk", styleId: "run", swap: "early", blunder: 0.02, persistent: true },
   { id: "filler", name: "Sergio Scariolo", wc: "Spain 2019", heuristic: "filler", styleId: "bal", swap: "late", blunder: 0.10, persistent: true },
   { id: "star", name: "Don Nelson", wc: "USA 1994", heuristic: "star", styleId: "run", swap: "early", blunder: 0.22, persistent: true },
   { id: "wall", name: "Željko Obradović", wc: "Yugoslavia 1998", heuristic: "wall", styleId: "lock", swap: "mid", blunder: 0.10, persistent: true },
-  { id: "tempo", name: "Steve Kerr", wc: "USA 2023", heuristic: "tempo", styleId: "run", swap: "never", blunder: 0.26, persistent: true },
+  { id: "tempo", name: "Ergin Ataman", wc: "Turkey 2014", heuristic: "tempo", styleId: "run", swap: "never", blunder: 0.26, persistent: true },
   { id: "homer", name: "Pepu Hernández", wc: "Spain 2006", heuristic: "homer", styleId: "bal", swap: "immediate", blunder: 0.10, persistent: true },
 ];
 
